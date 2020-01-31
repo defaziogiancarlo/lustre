@@ -59,6 +59,7 @@
 #include <linux/lustre/lustre_cfg.h>
 #include <linux/lustre/lustre_ioctl.h>
 #include <linux/lustre/lustre_ver.h>
+#include <lustre/lustreapi.h>
 
 #include <sys/un.h>
 #include <time.h>
@@ -437,17 +438,6 @@ int jt_lcfg_param(int argc, char **argv)
 	return jt_lcfg_ioctl(&bufs, argv[0], LCFG_PARAM);
 }
 
-struct param_opts {
-	unsigned int po_only_path:1;
-	unsigned int po_show_path:1;
-	unsigned int po_show_type:1;
-	unsigned int po_recursive:1;
-	unsigned int po_perm:1;
-	unsigned int po_delete:1;
-	unsigned int po_only_dir:1;
-	unsigned int po_file:1;
-};
-
 int lcfg_setparam_perm(char *func, char *buf)
 {
 	int     rc = 0;
@@ -617,345 +607,6 @@ out:
 }
 
 /**
- * Display a parameter path in the same format as sysctl.
- * E.g. obdfilter.lustre-OST0000.stats
- *
- * \param[in] filename	file name of the parameter
- * \param[in] st	parameter file stats
- * \param[in] popt	set/get param options
- *
- * \retval allocated pointer containing modified filename
- */
-static char *
-display_name(const char *filename, struct stat *st, struct param_opts *popt)
-{
-	size_t suffix_len = 0;
-	char *suffix = NULL;
-	char *param_name;
-	char *tmp;
-
-	if (popt->po_show_type) {
-		if (S_ISDIR(st->st_mode))
-			suffix = "/";
-		else if (S_ISLNK(st->st_mode))
-			suffix = "@";
-		else if (st->st_mode & S_IWUSR)
-			suffix = "=";
-	}
-
-	/* Take the original filename string and chop off the glob addition */
-	tmp = strstr(filename, "/lustre/");
-	if (tmp == NULL) {
-		tmp = strstr(filename, "/lnet/");
-		if (tmp != NULL)
-			tmp += strlen("/lnet/");
-	} else {
-		tmp += strlen("/lustre/");
-	}
-
-	/* Allocate return string */
-	param_name = strdup(tmp);
-	if (param_name == NULL)
-		return NULL;
-
-	/* replace '/' with '.' to match conf_param and sysctl */
-	for (tmp = strchr(param_name, '/'); tmp != NULL; tmp = strchr(tmp, '/'))
-		*tmp = '.';
-
-	/* Append the indicator to entries if needed. */
-	if (popt->po_show_type && suffix != NULL) {
-		suffix_len = strlen(suffix);
-
-		tmp = realloc(param_name, suffix_len + strlen(param_name) + 1);
-		if (tmp != NULL) {
-			param_name = tmp;
-			strncat(param_name, suffix,
-				strlen(param_name) + suffix_len);
-		}
-	}
-
-	return param_name;
-}
-
-/* Find a character in a length limited string */
-/* BEWARE - kernel definition of strnchr has args in different order! */
-static char *strnchr(const char *p, char c, size_t n)
-{
-       if (!p)
-               return (0);
-
-       while (n-- > 0) {
-               if (*p == c)
-                       return ((char *)p);
-               p++;
-       }
-       return (0);
-}
-
-/**
- * Turns a lctl parameter string into a procfs/sysfs subdirectory path pattern.
- *
- * \param[in] popt		Used to control parameter usage. For this
- *				function it is used to see if the path has
- *				a added suffix.
- * \param[in,out] path		lctl parameter string that is turned into
- *				the subdirectory path pattern that is used
- *				to search the procfs/sysfs tree.
- *
- * \retval -errno on error.
- */
-static int
-clean_path(struct param_opts *popt, char *path)
-{
-	char *nidstr = NULL;
-	char *tmp;
-
-	if (popt == NULL || path == NULL || strlen(path) == 0)
-		return -EINVAL;
-
-	/* If path contains a suffix we need to remove it */
-	if (popt->po_show_type) {
-		size_t path_end = strlen(path) - 1;
-
-		tmp = path + path_end;
-		switch (*tmp) {
-		case '@':
-		case '=':
-		case '/':
-			*tmp = '\0';
-		default:
-			break;
-		}
-	}
-
-	/* get rid of '\', glob doesn't like it */
-	tmp = strrchr(path, '\\');
-	if (tmp != NULL) {
-		char *tail = path + strlen(path);
-
-		while (tmp != path) {
-			if (*tmp == '\\') {
-				memmove(tmp, tmp + 1, tail - tmp);
-				--tail;
-			}
-			--tmp;
-		}
-	}
-
-	/* Does this path contain a NID string ? */
-	tmp = strchr(path, '@');
-	if (tmp != NULL) {
-		char *find_nid = strdup(path);
-		lnet_nid_t nid;
-
-		if (find_nid == NULL)
-			return -ENOMEM;
-
-		/* First we need to chop off rest after nid string.
-		 * Since find_nid is a clone of path it better have
-		 * '@' */
-		tmp = strchr(find_nid, '@');
-		tmp = strchr(tmp, '.');
-		if (tmp != NULL)
-			*tmp = '\0';
-
-		/* Now chop off the front. */
-		for (tmp = strchr(find_nid, '.'); tmp != NULL;
-		     tmp = strchr(tmp, '.')) {
-			/* Remove MGC to make it NID format */
-			if (!strncmp(++tmp, "MGC", 3))
-				tmp += 3;
-
-			nid = libcfs_str2nid(tmp);
-			if (nid != LNET_NID_ANY) {
-				nidstr = libcfs_nid2str(nid);
-				if (nidstr == NULL)
-					return -EINVAL;
-				break;
-			}
-		}
-		free(find_nid);
-	}
-
-	/* replace param '.' with '/' */
-	for (tmp = strchr(path, '.'); tmp != NULL; tmp = strchr(tmp, '.')) {
-		*tmp++ = '/';
-
-		/* Remove MGC to make it NID format */
-		if (!strncmp(tmp, "MGC", 3))
-			tmp += 3;
-
-		/* There exist cases where some of the subdirectories of the
-		 * the parameter tree has embedded in its name a NID string.
-		 * This means that it is possible that these subdirectories
-		 * could have actual '.' in its name. If this is the case we
-		 * don't want to blindly replace the '.' with '/'. */
-		if (nidstr != NULL) {
-			char *match = strstr(tmp, nidstr);
-
-			if (tmp == match)
-				tmp += strlen(nidstr);
-		}
-	}
-
-	return 0;
-}
-
-/**
- * The application lctl can perform three operations for lustre
- * tunables. This enum defines those three operations which are
- *
- * 1) LIST_PARAM	- list available tunables
- * 2) GET_PARAM		- report the current setting of a tunable
- * 3) SET_PARAM		- set the tunable to a new value
- */
-enum parameter_operation {
-	LIST_PARAM,
-	GET_PARAM,
-	SET_PARAM,
-};
-
-char *parameter_opname[] = {
-	[LIST_PARAM] = "list_param",
-	[GET_PARAM] = "get_param",
-	[SET_PARAM] = "set_param",
-};
-
-/**
- * Read the value of parameter
- *
- * \param[in]	path		full path to the parameter
- * \param[in]	param_name	lctl parameter format of the
- *				parameter path
- * \param[in]	popt		set/get param options
- *
- * \retval 0 on success.
- * \retval -errno on error.
- */
-static int
-read_param(const char *path, const char *param_name, struct param_opts *popt)
-{
-	bool display_path = popt->po_show_path;
-	long page_size = sysconf(_SC_PAGESIZE);
-	int rc = 0;
-	char *buf;
-	int fd;
-
-	/* Read the contents of file to stdout */
-	fd = open(path, O_RDONLY);
-	if (fd < 0) {
-		rc = -errno;
-		fprintf(stderr,
-			"error: get_param: opening '%s': %s\n",
-			path, strerror(errno));
-		return rc;
-	}
-
-	buf = calloc(1, page_size);
-	if (buf == NULL) {
-		fprintf(stderr,
-			"error: get_param: allocating '%s' buffer: %s\n",
-			path, strerror(errno));
-		close(fd);
-		return -ENOMEM;
-	}
-
-	while (1) {
-		ssize_t count = read(fd, buf, page_size);
-
-		if (count == 0)
-			break;
-		if (count < 0) {
-			rc = -errno;
-			if (errno != EIO) {
-				fprintf(stderr, "error: get_param: "
-					"reading '%s': %s\n",
-					param_name, strerror(errno));
-			}
-			break;
-		}
-
-		/* Print the output in the format path=value if the value does
-		 * not contain a new line character and the output can fit in
-		 * a single line, else print value on new line */
-		if (display_path) {
-			bool longbuf;
-
-			longbuf = strnchr(buf, count - 1, '\n') != NULL ||
-					  count + strlen(param_name) >= 80;
-			printf("%s=%s", param_name, longbuf ? "\n" : buf);
-
-			/* Make sure it doesn't print again while looping */
-			display_path = false;
-
-			if (!longbuf)
-				continue;
-		}
-
-		if (fwrite(buf, 1, count, stdout) != count) {
-			rc = -errno;
-			fprintf(stderr,
-				"error: get_param: write to stdout: %s\n",
-				strerror(errno));
-			break;
-		}
-	}
-	close(fd);
-	free(buf);
-
-	return rc;
-}
-
-/**
- * Set a parameter to a specified value
- *
- * \param[in] path		full path to the parameter
- * \param[in] param_name	lctl parameter format of the parameter path
- * \param[in] popt		set/get param options
- * \param[in] value		value to set the parameter to
- *
- * \retval number of bytes written on success.
- * \retval -errno on error.
- */
-static int
-write_param(const char *path, const char *param_name, struct param_opts *popt,
-	    const char *value)
-{
-	int fd, rc = 0;
-	ssize_t count;
-
-	if (value == NULL)
-		return -EINVAL;
-
-	/* Write the new value to the file */
-	fd = open(path, O_WRONLY);
-	if (fd < 0) {
-		rc = -errno;
-		fprintf(stderr, "error: set_param: opening '%s': %s\n",
-			path, strerror(errno));
-		return rc;
-	}
-
-	count = write(fd, value, strlen(value));
-	if (count < 0) {
-		rc = -errno;
-		if (errno != EIO) {
-			fprintf(stderr, "error: set_param: setting %s=%s: %s\n",
-				path, value, strerror(errno));
-		}
-	} else if (count < strlen(value)) { /* Truncate case */
-		rc = -EINVAL;
-		fprintf(stderr, "error: set_param: setting %s=%s: "
-			"wrote only %zd\n", path, value, count);
-	} else if (popt->po_show_path) {
-		printf("%s=%s\n", param_name, value);
-	}
-	close(fd);
-
-	return rc;
-}
-
-/**
  * Perform a read, write or just a listing of a parameter
  *
  * \param[in] popt		list,set,get parameter options
@@ -968,173 +619,9 @@ write_param(const char *path, const char *param_name, struct param_opts *popt,
  */
 static int
 param_display(struct param_opts *popt, char *pattern, char *value,
-	      enum parameter_operation mode)
+	      enum parameter_operation mode, FILE* output_fp)
 {
-	int dup_count = 0;
-	char **dup_cache;
-	glob_t paths;
-	char *opname = parameter_opname[mode];
-	int rc, i;
-
-	rc = cfs_get_param_paths(&paths, "%s", pattern);
-	if (rc != 0) {
-		rc = -errno;
-		if (!popt->po_recursive) {
-			fprintf(stderr, "error: %s: param_path '%s': %s\n",
-				opname, pattern, strerror(errno));
-		}
-		return rc;
-	}
-
-	dup_cache = calloc(paths.gl_pathc, sizeof(char *));
-	if (dup_cache == NULL) {
-		rc = -ENOMEM;
-		fprintf(stderr,
-			"error: %s: allocating '%s' dup_cache[%zd]: %s\n",
-			opname, pattern, paths.gl_pathc, strerror(-rc));
-		goto out_param;
-	}
-
-	for (i = 0; i < paths.gl_pathc; i++) {
-		char *param_name = NULL, *tmp;
-		char pathname[PATH_MAX];
-		struct stat st;
-		int rc2, j;
-
-		if (stat(paths.gl_pathv[i], &st) == -1) {
-			fprintf(stderr, "error: %s: stat '%s': %s\n",
-				opname, paths.gl_pathv[i], strerror(errno));
-			if (rc == 0)
-				rc = -errno;
-			continue;
-		}
-
-		if (popt->po_only_dir && !S_ISDIR(st.st_mode))
-			continue;
-
-		param_name = display_name(paths.gl_pathv[i], &st, popt);
-		if (param_name == NULL) {
-			fprintf(stderr,
-				"error: %s: generating name for '%s': %s\n",
-				opname, paths.gl_pathv[i], strerror(ENOMEM));
-			if (rc == 0)
-				rc = -ENOMEM;
-			continue;
-		}
-
-		switch (mode) {
-		case GET_PARAM:
-			/* Read the contents of file to stdout */
-			if (S_ISREG(st.st_mode)) {
-				rc2 = read_param(paths.gl_pathv[i], param_name,
-						 popt);
-				if (rc2 < 0 && rc == 0)
-					rc = rc2;
-			}
-			break;
-		case SET_PARAM:
-			if (S_ISREG(st.st_mode)) {
-				rc2 = write_param(paths.gl_pathv[i],
-						  param_name, popt, value);
-				if (rc2 < 0 && rc == 0)
-					rc = rc2;
-			}
-			break;
-		case LIST_PARAM:
-			/**
-			 * For the upstream client the parameter files locations
-			 * are split between under both /sys/kernel/debug/lustre
-			 * and /sys/fs/lustre. The parameter files containing
-			 * small amounts of data, less than a page in size, are
-			 * located under /sys/fs/lustre and in the case of large
-			 * parameter data files, think stats for example, are
-			 * located in the debugfs tree. Since the files are split
-			 * across two trees the directories are often duplicated
-			 * which means these directories are listed twice which
-			 * leads to duplicate output to the user. To avoid
-			 * scanning a directory twice we have to cache any
-			 * directory and check if a search has been requested
-			 * twice.
-			 */
-			for (j = 0; j < dup_count; j++) {
-				if (!strcmp(dup_cache[j], param_name))
-					break;
-			}
-			if (j != dup_count) {
-				free(param_name);
-				param_name = NULL;
-				continue;
-			}
-			dup_cache[dup_count++] = strdup(param_name);
-
-			if (popt->po_show_path)
-				printf("%s\n", param_name);
-			break;
-		}
-
-		/* Only directories are searched recursively if
-		 * requested by the user */
-		if (!S_ISDIR(st.st_mode) || !popt->po_recursive) {
-			free(param_name);
-			param_name = NULL;
-			continue;
-		}
-
-		/* Turn param_name into file path format */
-		rc2 = clean_path(popt, param_name);
-		if (rc2 < 0) {
-			fprintf(stderr, "error: %s: cleaning '%s': %s\n",
-				opname, param_name, strerror(-rc2));
-			free(param_name);
-			param_name = NULL;
-			if (rc == 0)
-				rc = rc2;
-			continue;
-		}
-
-		/* Use param_name to grab subdirectory tree from full path */
-		tmp = strstr(paths.gl_pathv[i], param_name);
-
-		/* cleanup paramname now that we are done with it */
-		free(param_name);
-		param_name = NULL;
-
-		/* Shouldn't happen but just in case */
-		if (tmp == NULL) {
-			if (rc == 0)
-				rc = -EINVAL;
-			continue;
-		}
-
-		rc2 = snprintf(pathname, sizeof(pathname), "%s/*", tmp);
-		if (rc2 < 0) {
-			/* snprintf() should never an error, and if it does
-			 * there isn't much point trying to use fprintf() */
-			continue;
-		}
-		if (rc2 >= sizeof(pathname)) {
-			fprintf(stderr, "error: %s: overflow processing '%s'\n",
-				opname, pathname);
-			if (rc == 0)
-				rc = -EINVAL;
-			continue;
-		}
-
-		rc2 = param_display(popt, pathname, value, mode);
-		if (rc2 != 0 && rc2 != -ENOENT) {
-			/* errors will be printed by param_display() */
-			if (rc == 0)
-				rc = rc2;
-			continue;
-		}
-	}
-
-	for (i = 0; i < dup_count; i++)
-		free(dup_cache[i]);
-	free(dup_cache);
-out_param:
-	cfs_free_param_data(&paths);
-	return rc;
+	return llapi_param_access(popt, pattern, value, mode, output_fp);
 }
 
 static int listparam_cmdline(int argc, char **argv, struct param_opts *popt)
@@ -1163,6 +650,7 @@ static int listparam_cmdline(int argc, char **argv, struct param_opts *popt)
 	return optind;
 }
 
+
 int jt_lcfg_listparam(int argc, char **argv)
 {
 	int rc = 0, index, i;
@@ -1179,16 +667,7 @@ int jt_lcfg_listparam(int argc, char **argv)
 
 		path = argv[i];
 
-		rc2 = clean_path(&popt, path);
-		if (rc2 < 0) {
-			fprintf(stderr, "error: %s: cleaning '%s': %s\n",
-				jt_cmdname(argv[0]), path, strerror(-rc2));
-			if (rc == 0)
-				rc = rc2;
-			continue;
-		}
-
-		rc2 = param_display(&popt, path, NULL, LIST_PARAM);
+		rc2 = param_display(&popt, path, NULL, LIST_PARAM, NULL);
 		if (rc2 < 0) {
 			fprintf(stderr, "error: %s: listing '%s': %s\n",
 				jt_cmdname(argv[0]), path, strerror(-rc2));
@@ -1197,7 +676,6 @@ int jt_lcfg_listparam(int argc, char **argv)
 			continue;
 		}
 	}
-
 	return rc;
 }
 
@@ -1245,24 +723,15 @@ int jt_lcfg_getparam(int argc, char **argv)
 
 		path = argv[i];
 
-		rc2 = clean_path(&popt, path);
-		if (rc2 < 0) {
-			fprintf(stderr, "error: %s: cleaning '%s': %s\n",
-				jt_cmdname(argv[0]), path, strerror(-rc2));
-			if (rc == 0)
-				rc = rc2;
-			continue;
-		}
-
 		rc2 = param_display(&popt, path, NULL,
-				   popt.po_only_path ? LIST_PARAM : GET_PARAM);
+				    popt.po_only_path ? LIST_PARAM : GET_PARAM,
+				    NULL);
 		if (rc2 < 0) {
 			if (rc == 0)
 				rc = rc2;
 			continue;
 		}
 	}
-
 	return rc;
 }
 
@@ -1295,14 +764,14 @@ int jt_nodemap_info(int argc, char **argv)
 	if (argc == 1 || strcmp("list", argv[1]) == 0) {
 		popt.po_only_path = 1;
 		popt.po_only_dir = 1;
-		rc = param_display(&popt, "nodemap/*", NULL, LIST_PARAM);
+		rc = param_display(&popt, "nodemap/*", NULL, LIST_PARAM, NULL);
 	} else if (strcmp("all", argv[1]) == 0) {
-		rc = param_display(&popt, "nodemap/*/*", NULL, LIST_PARAM);
+		rc = param_display(&popt, "nodemap/*/*", NULL, LIST_PARAM, NULL);
 	} else {
 		char	pattern[PATH_MAX];
 
 		snprintf(pattern, sizeof(pattern), "nodemap/%s/*", argv[1]);
-		rc = param_display(&popt, pattern, NULL, LIST_PARAM);
+		rc = param_display(&popt, pattern, NULL, LIST_PARAM, NULL);
 		if (rc == -ESRCH)
 			fprintf(stderr, "error: nodemap_info: cannot find "
 					"nodemap %s\n", argv[1]);
@@ -1586,16 +1055,7 @@ int jt_lcfg_setparam(int argc, char **argv)
 			}
 		}
 
-		rc2 = clean_path(&popt, path);
-		if (rc2 < 0) {
-			fprintf(stderr, "error: %s: cleaning %s: %s\n",
-				jt_cmdname(argv[0]), path, strerror(-rc2));
-			if (rc == 0)
-				rc = rc2;
-			continue;
-		}
-
-		rc2 = param_display(&popt, path, value, SET_PARAM);
+		rc2 = param_display(&popt, path, value, SET_PARAM, NULL);
 		if (rc == 0)
 			rc = rc2;
 	}
