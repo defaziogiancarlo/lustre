@@ -41,6 +41,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <linux/lustre/lustre_user.h>
+#include <libcfs/util/param.h>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -1114,6 +1115,11 @@ int llapi_heat_set(int fd, __u64 flags);
 int llapi_layout_sanity(struct llapi_layout *layout, bool incomplete, bool flr);
 void llapi_layout_sanity_perror(int error);
 int llapi_layout_dom_size(struct llapi_layout *layout, uint64_t *size);
+
+int llapi_param_get_paths(const char *pattern, glob_t *paths);
+int llapi_param_get_value(const char *path, char **buf, size_t *buflen);
+void llapi_param_paths_free(glob_t *paths);
+
 
 /** @} llapi */
 

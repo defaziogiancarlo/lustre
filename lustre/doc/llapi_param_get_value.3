@@ -1,0 +1,77 @@
+.TH LLAPI_PARAM_GET_VALUE 3 "2020 Feb 14" "Lustre User API"
+.SH NAME
+llapi_param_get_value \- read parameter files for Lustre to a buffer
+.SH SYNOPSIS
+.nf
+.B #include <lustre/lustreapi.h>
+.sp
+.BI "int llapi_param_get_value(const char "  "*path"  ", char " "**buf" ",  size_t " " *buflen" ")"
+.SH DESCRIPTION
+.LP
+The
+.B llapi_param_get_value()
+function reads the contents of files in procfs, sysfs, etc. to a buffer. If the buffer is preallocated, it will have a fixed size. If the buffer is not preallocated, it will be automatically sized to fit the contents of the file. There is also an option to query the size of a file.
+
+The behavior of
+.B llapi_param_get_value()
+depends on the value of
+.IR buf .
+If
+.I buf
+is NULL, then the contents of
+.I path
+will not be saved into
+.IR *buf ,
+but the number of bytes needed to hold the file will be stored in
+.IR buflen .
+This size will include the space needed for the NULL terminating byte. However, the size
+of the file can change because it is dynamically generated. This means that it's possible for the file size to increase and consequently, the value stored in
+.I buflen
+may still not be large enough when used in a subsequent call.
+.sp
+If
+.I buf
+is not NULL but
+.I *buf
+is NULL, then
+.I *buf
+will point to an automatically allocated buffer that will hold the contents of
+.IR path ,
+and buflen will hold the number of bytes written excluding the NULL terminating byte.
+.sp
+If both
+.I buf
+and
+.I *buf
+are not NULL, then
+.I buf
+is assumed to be a pre-allocated buffer of
+.I *buflen
+size. The files contents will be put into
+.I *buf
+and the number of bytes written, excluding the NULL terminating byte. In the case that
+.I .buflen
+is too small to hold the contents of the file,
+.I buflen will contain a suggested size for
+.IR *buf .
+
+.SH RETURN VALUES
+On success,
+.B 0
+is returned.
+Any error will return a negative error code. For the case that
+.I buf
+and
+.I *buf
+are not NULL, a return value of
+.B -EOVERFLOW
+indicates that pre-allocated buffer is too small.
+
+.SH EXAMPLE
+
+
+.SH SEE ALSO
+.BR llapi_get_param_paths (3),
+.BR lctl (8)
+
+
