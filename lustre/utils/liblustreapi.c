@@ -5919,3 +5919,78 @@ int llapi_group_unlock(int fd, int gid)
 	}
 	return rc;
 }
+
+int
+llapi_get_lustre_param_paths(const char *pattern, glob_t *param)
+{
+        return get_lustre_param_path(NULL, NULL, FILTER_BY_NONE,
+                                     pattern, param);
+}
+
+/**
+ * Read the entire contents of path into fp
+ *
+ * \param[in]	   path		full path to the parameter
+ * \param[in,out]  fp           file in which to write the 
+ *                              parameter value
+ *
+ * \retval 0 on success.
+ * \retval -errno on error.
+ */
+int
+llapi_get_lustre_param_all(const char *path, FILE *fp)
+{
+	long page_size = sysconf(_SC_PAGESIZE);
+	int rc = 0;
+	char *buf;
+	int fd;
+
+	/* Read the contents of file to stdout */
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		rc = -errno;
+		fprintf(stderr,
+			"error: read_param_all: opening '%s': %s\n",
+			path, strerror(errno));
+		return rc;
+	}
+
+	buf = calloc(1, page_size);
+	if (buf == NULL) {
+		fprintf(stderr,
+			"error: read_param_all:"
+			" allocating '%s' buffer: %s\n",
+			path, strerror(errno));
+		close(fd);
+		return -ENOMEM;
+	}
+
+	while (1) {
+		ssize_t count = read(fd, buf, page_size);
+
+		if (count == 0)
+			break;
+		if (count < 0) {
+			rc = -errno;
+			if (errno != EIO) {
+				fprintf(stderr, "error: read_param_all:"
+					" reading '%s': %s\n",
+					path, strerror(errno));
+			}
+			break;
+		}
+
+		if (fwrite(buf, 1, count, fp) != count) {
+			rc = -errno;
+			fprintf(stderr,
+				"error: read_param_all:"
+				" write to fp: %s\n",
+				strerror(errno));
+			break;
+		}
+	}
+	close(fd);
+	free(buf);
+
+	return rc;
+}
