@@ -1,0 +1,22 @@
+.TH LLAPI_GET_PARAM_PATHS 3 "2020 Feb 14" "Lustre User API"
+.SH NAME
+llapi_get_param_paths \- get a list of lustre parameter file paths that match the given pattern
+.SH SYNOPSIS
+.B #include <lustre/lustreapi.h>
+.nf
+.BI "int llapi_get_param_paths(char" " *pattern, " "glob_t " " *paths" ")"
+.SH DESCRIPTION
+The
+.B llapi_get_param_paths(\|)
+function searches the locations in the filesystem that expose Lustre parameters. All file names that match the pattern and are in the correct locations in the file system are returned as paths.
+
+.SH RETURN VALUES
+On success,
+.B 0
+is returned.
+
+.SH SEE ALSO
+.BR llapi_get_param_paths (3),
+.BR lctl (8)
+
+

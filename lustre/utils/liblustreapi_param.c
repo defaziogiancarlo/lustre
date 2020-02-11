@@ -25,7 +25,13 @@
  * Copyright (c) 2016, Intel Corporation.
  */
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <libcfs/util/param.h>
 #include <linux/lustre/lustre_user.h>
@@ -180,4 +186,227 @@ err:
 	cfs_free_param_data(&param);
 
 	return rc;
+}
+
+
+int llapi_param_get_paths(const char *pattern, glob_t *paths)
+{
+	return get_lustre_param_path(NULL, NULL, FILTER_BY_NONE,
+				     pattern, paths);
+}
+
+
+int required_size(const char *path, size_t *file_size)
+{
+	long page_size = sysconf(_SC_PAGESIZE);
+	int rc = 0;
+	char *temp_buf;
+	int fd;
+
+	*file_size = 0;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return -errno;
+
+	temp_buf = calloc(1, page_size);
+	if (temp_buf == NULL) {
+		close(fd);
+		return -ENOMEM;
+	}
+
+	while (1) {
+		ssize_t count = read(fd, temp_buf, page_size);
+
+		if (count == 0)
+			break;
+		if (count < 0) {
+			rc = -errno;
+			break;
+		}
+		*file_size += count;
+	}
+	close(fd);
+	free(temp_buf);
+	*file_size += 1;
+	return rc;
+}
+
+
+int copy_file_expandable(const char *path, char **buf, size_t *file_size)
+{
+	long page_size = sysconf(_SC_PAGESIZE);
+	int rc = 0;
+	char *temp_buf;
+	int fd;
+	FILE *fp;
+
+	fp = open_memstream(buf, file_size);
+	if (fp == NULL) {
+		rc = -errno;
+		goto out;
+	}
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		rc = -errno;
+		goto close_stream;
+	}
+
+	temp_buf = calloc(1, page_size);
+	if (buf == NULL) {
+		rc = -ENOMEM;
+		goto close_file;
+	}
+
+	while (1) {
+		ssize_t count = read(fd, temp_buf, page_size);
+
+		if (count == 0)
+			break;
+		if (count < 0) {
+			rc = -errno;
+			break;
+		}
+
+		if (fwrite(temp_buf, 1, count, fp) != count) {
+			rc = -errno;
+			break;
+		}
+	}
+
+	free(temp_buf);
+close_file:
+	close(fd);
+close_stream:
+	fclose(fp);
+out:
+	/* If rc != 0 and *buf != NULL, the caller may retry.
+	   This would likely result in copy_file_fixed() being called
+	   on accident, and a likely memory error. */
+	if (rc != 0) {
+		free(*buf);
+		*buf = NULL;
+	}
+	return rc;
+}
+
+int copy_file_fixed(const char *path, char *buf, size_t *file_size)
+{
+	long page_size = sysconf(_SC_PAGESIZE);
+	int rc = 0;
+	char *temp_buf;
+	int fd;
+	FILE *fp;
+	bool valid_write = 1;
+
+	fp = fmemopen(buf, *file_size, "r+");
+	if (fp == NULL) {
+		rc = -errno;
+		goto out;
+	}
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		rc = -errno;
+		goto close_stream;
+	}
+
+	temp_buf = calloc(1, page_size);
+	if (buf == NULL) {
+		rc = -ENOMEM;
+		goto close_file;
+	}
+
+	while (1) {
+		ssize_t count = read(fd, temp_buf, page_size);
+
+		if (count == 0)
+			break;
+		if (count < 0) {
+			rc = -errno;
+			break;
+		}
+		*file_size += count;
+
+		/* keep tracking the file size even if
+		   fwrite fails */
+		if (valid_write) {
+			if (fwrite(temp_buf, 1, count, fp) != count) {
+				valid_write = 0;
+				rc = -EOVERFLOW;
+			}
+		}
+	}
+
+	free(temp_buf);
+close_file:
+	close(fd);
+close_stream:
+	fclose(fp);
+out:
+	return rc;
+}
+
+/**
+ * Read the value of the file with location \a path
+ * into a buffer.
+ *
+ * \param path[in]           the location of a parameter file
+ * \param buf[in,out]        a pointer to a pointer to a buffer
+ * \param buflen[in,out]     the length of a pre-allocated buffer
+ *                           when passed in, and either the number
+ *                           of bytes written or the suggested
+ *                           size of *buf when passed out.
+ *
+ * There are 3 behaviors based on the value of buf.
+ * If buf == NULL, then the buffer size needed to read the file at
+ * \a path will be written to \a *buflen.
+ * If \a buf != NULL and \a *buf == NULL, the value of *buf will point
+ * to a buffer that will be automatically sized to fit the file
+ * contents. A NULL byte will be added to the end of the buffer.
+ * The value of \a *buflen will be set to the number of bytes written
+ * excuding the NULL byte.
+ * If \a buf != NULL and \a *buf != NULL, it will be assumed that \a *buf
+ * points to a pre-allocated buffer with a capacity of \a *buflen.
+ * If there is sufficient space, the file contents and NULL terminating
+ * byte will be written to the buffer at .\a *buf.
+ * Otherwise, the required size of \a *buflen with be written to \a *buflen.
+ *
+ * Returns 0 for success with null terminated string in \a *buf.
+ * Returns negative errno value on error.
+ * For case of \a buf != NULL and \a *buf != NULL, a return value
+ * of -EOVERFLOW indicates that it's possible retry with a larger
+ * buffer.
+ */
+int llapi_param_get_value(const char *path, char **buf, size_t *buflen)
+{
+	int rc = 0;
+
+	if (buf == NULL) {
+		return required_size(path, buflen);
+	}
+	/* handle for buffer, but no buffer
+	   create a buffer of the required size */
+	if (*buf == NULL) {
+		return copy_file_expandable(path, buf, buflen);
+	}
+	/* preallocated buffer given, attempt to copy
+	   file to it, return file size of buffer too small */
+	rc = copy_file_fixed(path, *buf, buflen);
+	if (rc == -EOVERFLOW) {
+		rc = required_size(path, buflen);
+		if (rc == 0)
+			rc = -EOVERFLOW;
+	}
+
+	return rc;
+}
+
+/**
+ * Free file paths.
+ */
+void llapi_param_paths_free(glob_t *paths)
+{
+	cfs_free_param_data(paths);
 }
