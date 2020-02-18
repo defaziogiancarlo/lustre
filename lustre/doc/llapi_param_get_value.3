@@ -5,7 +5,7 @@ llapi_param_get_value \- read parameter files for Lustre to a buffer
 .nf
 .B #include <lustre/lustreapi.h>
 .sp
-.BI "int llapi_param_get_value(const char "  "*path"  ", char " "**buf" ",  size_t " " *buflen" ")"
+.BI "int llapi_param_get_value(const char "  "*path"  ", char " "**buf" ", size_t " "*buflen" ");"
 .SH DESCRIPTION
 .LP
 The
@@ -25,9 +25,9 @@ will not be saved into
 but the number of bytes needed to hold the file will be stored in
 .IR buflen .
 This size will include the space needed for the NULL terminating byte. However, the size
-of the file can change because it is dynamically generated. This means that it's possible for the file size to increase and consequently, the value stored in
+of the file can change because it is dynamically generated. This means that it's possible for the file size to increase which will cause the value stored in
 .I buflen
-may still not be large enough when used in a subsequent call.
+to still not be large enough when used in a subsequent call.
 .sp
 If
 .I buf
@@ -49,7 +49,9 @@ is assumed to be a pre-allocated buffer of
 .I *buflen
 size. The files contents will be put into
 .I *buf
-and the number of bytes written, excluding the NULL terminating byte. In the case that
+and the number of bytes written to
+.IR *buflen , 
+excluding the NULL terminating byte. In the case that
 .I .buflen
 is too small to hold the contents of the file,
 .I buflen will contain a suggested size for
