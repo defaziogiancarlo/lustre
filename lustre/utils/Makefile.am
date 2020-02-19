@@ -28,7 +28,7 @@ bin_SCRIPTS   = llstat llobdstat plot-llstat
 bin_PROGRAMS  = lfs
 sbin_SCRIPTS  = ldlm_debug_upcall
 sbin_PROGRAMS = lctl l_getidentity llverfs lustre_rsync ll_decode_linkea \
-		llsom_sync
+		llsom_sync test_param_get_values
 
 if TESTS
 sbin_PROGRAMS += wiretest
@@ -65,6 +65,10 @@ lctl_SOURCES += lustre_lfsck.c lsnapshot.c
 endif
 lctl_LDADD :=  liblustreapi.la $(PTHREAD_LIBS) -lyaml
 lctl_DEPENDENCIES := liblustreapi.la
+
+test_param_get_values_SOURCES = test_param_get_values.c
+test_param_get_values_LDADD :=  liblustreapi.la $(PTHREAD_LIBS) -lyaml
+test_param_get_values_DEPENDENCIES := liblustreapi.la
 
 lfs_SOURCES = lfs.c lfs_project.c lfs_project.h
 lfs_LDADD := liblustreapi.la -lz
