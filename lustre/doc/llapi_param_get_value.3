@@ -70,6 +70,47 @@ are not NULL, a return value of
 indicates that pre-allocated buffer is too small.
 
 .SH EXAMPLE
+.in
+.nf
+
+#include <lustre/lustreapi.h>
+#include <stdio.h>
+
+void test_pattern(char* pattern)
+{
+        printf("pattern=%s\n", pattern);
+        glob_t paths;
+        int rc;
+        rc = llapi_param_get_paths(pattern, &paths);
+        if (rc) {
+                printf("bad pattern: %s\n", pattern);
+                return;
+        }
+
+        char* buf = NULL;
+        size_t sizeloc;
+
+
+        int i;
+        for (i = 0; paths.gl_pathv[i]; ++i) {
+                llapi_param_get_value(paths.gl_pathv[i], &buf, &sizeloc);
+                printf("path=%s\n",paths.gl_pathv[i]);
+                printf("value=\n%s\n", buf);
+        }
+}
+
+
+int main(int argc, char* argv[])
+{
+
+        test_pattern("version");
+        test_pattern("timeout");
+        test_pattern("ldlm/namespaces/*/lru_size");
+        return 0;
+}
+.fi
+
+
 
 
 .SH SEE ALSO
