@@ -188,15 +188,13 @@ err:
 	return rc;
 }
 
-
-int llapi_param_get_paths(const char *pattern, glob_t *paths)
+static int llapi_param_get_paths(const char *pattern, glob_t *paths)
 {
 	return get_lustre_param_path(NULL, NULL, FILTER_BY_NONE,
 				     pattern, paths);
 }
 
-
-int required_size(const char *path, size_t *file_size)
+static int required_size(const char *path, size_t *file_size)
 {
 	long page_size = sysconf(_SC_PAGESIZE);
 	int rc = 0;
@@ -232,8 +230,7 @@ int required_size(const char *path, size_t *file_size)
 	return rc;
 }
 
-
-int copy_file_expandable(const char *path, char **buf, size_t *file_size)
+static int copy_file_expandable(const char *path, char **buf, size_t *file_size)
 {
 	long page_size = sysconf(_SC_PAGESIZE);
 	int rc = 0;
@@ -292,7 +289,7 @@ out:
 	return rc;
 }
 
-int copy_file_fixed(const char *path, char *buf, size_t *file_size)
+static int copy_file_fixed(const char *path, char *buf, size_t *file_size)
 {
 	long page_size = sysconf(_SC_PAGESIZE);
 	int rc = 0;
@@ -366,12 +363,12 @@ out:
  * \a path will be written to \a *buflen.
  * If \a buf != NULL and \a *buf == NULL, the value of *buf will point
  * to a buffer that will be automatically sized to fit the file
- * contents. A NULL byte will be added to the end of the buffer.
+ * contents. A NUL byte will be added to the end of the buffer.
  * The value of \a *buflen will be set to the number of bytes written
- * excuding the NULL byte.
+ * excuding the NUL byte.
  * If \a buf != NULL and \a *buf != NULL, it will be assumed that \a *buf
  * points to a pre-allocated buffer with a capacity of \a *buflen.
- * If there is sufficient space, the file contents and NULL terminating
+ * If there is sufficient space, the file contents and NUL terminating
  * byte will be written to the buffer at .\a *buf.
  * Otherwise, the required size of \a *buflen with be written to \a *buflen.
  *
@@ -393,7 +390,7 @@ int llapi_param_get_value(const char *path, char **buf, size_t *buflen)
 	if (*buf == NULL)
 		return copy_file_expandable(path, buf, buflen);
 	/* preallocated buffer given, attempt to copy
-	 * file to it, return file size of buffer too small
+	 * file to it, return file size if buffer too small
 	 */
 	rc = copy_file_fixed(path, *buf, buflen);
 	if (rc == -EOVERFLOW) {
