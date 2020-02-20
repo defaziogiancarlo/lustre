@@ -282,8 +282,9 @@ close_stream:
 	fclose(fp);
 out:
 	/* If rc != 0 and *buf != NULL, the caller may retry.
-	   This would likely result in copy_file_fixed() being called
-	   on accident, and a likely memory error. */
+	 * This would likely result in copy_file_fixed() being called
+	 * on accident, and a likely memory error.
+	 */
 	if (rc != 0) {
 		free(*buf);
 		*buf = NULL;
@@ -330,7 +331,8 @@ int copy_file_fixed(const char *path, char *buf, size_t *file_size)
 		*file_size += count;
 
 		/* keep tracking the file size even if
-		   fwrite fails */
+		 * fwrite fails
+		 */
 		if (valid_write) {
 			if (fwrite(temp_buf, 1, count, fp) != count) {
 				valid_write = 0;
@@ -383,16 +385,16 @@ int llapi_param_get_value(const char *path, char **buf, size_t *buflen)
 {
 	int rc = 0;
 
-	if (buf == NULL) {
+	if (buf == NULL)
 		return required_size(path, buflen);
-	}
 	/* handle for buffer, but no buffer
-	   create a buffer of the required size */
-	if (*buf == NULL) {
+	 * create a buffer of the required size
+	 */
+	if (*buf == NULL)
 		return copy_file_expandable(path, buf, buflen);
-	}
 	/* preallocated buffer given, attempt to copy
-	   file to it, return file size of buffer too small */
+	 * file to it, return file size of buffer too small
+	 */
 	rc = copy_file_fixed(path, *buf, buflen);
 	if (rc == -EOVERFLOW) {
 		rc = required_size(path, buflen);
