@@ -67,6 +67,8 @@ lctl_LDADD :=  liblustreapi.la $(PTHREAD_LIBS) -lyaml
 lctl_DEPENDENCIES := liblustreapi.la
 
 test_param_get_values_SOURCES = test_param_get_values.c
+test_param_get_values_CFLAGS = $(AM_CFLAGS)
+test_param_get_values_CFLAGS += -std=c99
 test_param_get_values_LDADD :=  liblustreapi.la $(PTHREAD_LIBS) -lyaml
 test_param_get_values_DEPENDENCIES := liblustreapi.la
 
