@@ -289,63 +289,98 @@ out:
 	return rc;
 }
 
-static int copy_file_fixed(const char *path, char *buf, size_t *file_size)
+/**
+ *  Read to the end of the file and count the bytes read.
+ */
+static int bytes_remaining(int fd, size_t *file_size)
 {
-	long page_size = sysconf(_SC_PAGESIZE);
 	int rc = 0;
-	char *temp_buf;
-	int fd;
-	FILE *fp;
-	bool valid_write = 1;
+	size_t bytes_read;
+	char *temp_buf = malloc(64);
 
-	fp = fmemopen(buf, *file_size, "r+");
-	if (fp == NULL) {
-		rc = -errno;
-		goto out;
-	}
-
-	fd = open(path, O_RDONLY);
-	if (fd < 0) {
-		rc = -errno;
-		goto close_stream;
-	}
-
-	temp_buf = calloc(1, page_size);
-	if (buf == NULL) {
-		rc = -ENOMEM;
-		goto close_file;
-	}
+	if (temp_buf == NULL)
+		return -ENOMEM;
 
 	while (1) {
-		ssize_t count = read(fd, temp_buf, page_size);
+		ssize_t count = read(fd, temp_buf, 64);
 
-		if (count == 0)
+		if (count == 0) {
+			*file_size = bytes_read;
 			break;
+		}
+
 		if (count < 0) {
 			rc = -errno;
 			break;
 		}
-		*file_size += count;
 
-		/* keep tracking the file size even if
-		 * fwrite fails
-		 */
-		if (valid_write) {
-			if (fwrite(temp_buf, 1, count, fp) != count) {
-				valid_write = 0;
-				rc = -EOVERFLOW;
-			}
-		}
+		bytes_read += count;
 	}
 
 	free(temp_buf);
-close_file:
-	close(fd);
-close_stream:
-	fclose(fp);
-out:
 	return rc;
 }
+
+/**
+ *  Copy file to a buffer and write the number of bytes copied 
+ */
+static int copy_file_fixed(char *path, char *buf, size_t *buflen)
+{
+	int rc = 0;
+	int fd;
+	size_t bytes_read = 0;
+	size_t max_read = *buflen - 1;
+	bool read_all = 0;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return -errno;
+
+	while (bytes_read < max_read) {
+		ssize_t count = read(fd,
+				     buf + bytes_read,
+				     max_read - bytes_read);
+
+		if (count == 0) {
+			*buflen = bytes_read + 1;
+			buf[bytes_read] = '\0';
+			read_all = 1;
+			break;
+		}
+
+		if (count < 0) {
+			rc = -errno;
+			goto err;
+		}
+
+		bytes_read += count;
+	}
+
+	/* buf full except last byte */
+	if (!read_all) {
+		size_t remaining;
+
+		buf[max_read] = '\0';
+
+		rc = bytes_remaining(fd, &remaining);
+		if (rc != 0) {
+			rc = -errno;
+			goto err;
+		}
+
+		*buflen = bytes_read + remaining + 1;
+
+		/* file was not exactly (*buflen - 1) bytes */
+		if (remaining != 0)
+			rc = -EOVERFLOW;
+	}
+
+err:
+	close(fd);
+
+	return rc;
+}
+
 
 /**
  * Read the value of the file with location \a path
