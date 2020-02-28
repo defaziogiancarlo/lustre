@@ -75,6 +75,40 @@ void print_if_quotactl(struct if_quotactl *qctl)
 	print_obd_uuid(&(qctl->obd_uuid));
 }
 
+struct if_quotactl *init_if_quotactl()
+{
+ 	qctl = calloc(1,sizeof(*qctl));    
+	qctl->qc_cmd  = LUSTRE_Q_GETQUOTA;  // get info for specific user/groupt/etc.
+//	qctl->qc_cmd  = LUSTRE_Q_GETINFO;  // get info for specific user/groupt/etc.
+	qctl->qc_type = USRQUOTA;           // get info for user
+
+	/* use $UID not $LOGNAME */ 
+	rc = name2uid(&(qctl->qc_id), username);
+	if (rc != 0) {
+		fprintf(stderr, "exceeding quota: user \"%s\" not found\n",
+			username);
+		return rc;
+	}
+
+
+
+}
+
+
+
+
+/* check if the dqb_valid flags actually changes lookup time */
+void perf_test()
+
+	
+
+
+
+
+
+
+
+
 /**
  * Check if a user is exceeding a quota on a lustre file system
  */
@@ -84,7 +118,7 @@ int exceeding_quota(char *mnt, char *username)
 	struct if_quotactl *qctl;
 
 	/* qctl should be zeros to start */
-	qctl = calloc(1,sizeof(*qctl));    
+ 	qctl = calloc(1,sizeof(*qctl));    
 	qctl->qc_cmd  = LUSTRE_Q_GETQUOTA;  // get info for specific user/groupt/etc.
 //	qctl->qc_cmd  = LUSTRE_Q_GETINFO;  // get info for specific user/groupt/etc.
 	qctl->qc_type = USRQUOTA;           // get info for user
