@@ -20,7 +20,6 @@ static int name2uid(unsigned int *id, const char *name)
  	return 0;
 }
 
-
 void print_flags(__u32 flags)
 {
 	int i;
@@ -31,14 +30,6 @@ void print_flags(__u32 flags)
 		printf("%s=%d\n", flag_names[i], GET_BIT(flags, i));
 	}
 }
-	
-
-
-int init_quota_args()
-{
-	return 0;
-}
-
 
 void print_obd_dqinfo(struct obd_dqinfo *x)
 {
@@ -83,7 +74,6 @@ void print_if_quotactl(struct if_quotactl *qctl)
 	printf("obd_uuid=\n");
 	print_obd_uuid(&(qctl->obd_uuid));
 }
-
 
 /**
  * Check if a user is exceeding a quota on a lustre file system
