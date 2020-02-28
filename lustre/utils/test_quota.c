@@ -5,21 +5,33 @@
 #include <sys/types.h>
 #include <pwd.h>
 
+#define GET_BIT(x,n) ((int)(((x) >> (n)) & 1))
 
 // stolen from lfs.c
 static int name2uid(unsigned int *id, const char *name)
 {
-	struct passwd *passwd;
+ 	struct passwd *passwd;
 
-	passwd = getpwnam(name);
-	if (passwd == NULL)
-		return -ENOENT;
-	*id = passwd->pw_uid;
+ 	passwd = getpwnam(name);
+ 	if (passwd == NULL)
+ 		return -ENOENT;
+ 	*id = passwd->pw_uid;
 
-	return 0;
+ 	return 0;
 }
 
 
+void print_flags(__u32 flags)
+{
+	int i;
+	char *flag_names[] = {"lqe_enforced", "lqe_uptodate", "lqe_edquot",
+			      "lqe_gl", "lqe_nopreacq", "lqe_is_default"};
+
+	for (i = 0; i < 6; ++i) {
+		printf("%s=%d\n", flag_names[i], GET_BIT(flags, i));
+	}
+}
+	
 
 
 int init_quota_args()
@@ -32,7 +44,7 @@ void print_obd_dqinfo(struct obd_dqinfo *x)
 {
 	printf("%s=%llu\n","dqi_bgrace", x->dqi_bgrace);
 	printf("%s=%llu\n","dqi_igrace", x->dqi_igrace);
-	printf("%s=%u\n","dqi_flags",   x->dqi_flags);
+	printf("%s=0x%.6x\n","dqi_flags",   x->dqi_flags);
 	printf("%s=%u\n","dqi_valid",   x->dqi_valid);
 }
 
@@ -84,7 +96,7 @@ int exceeding_quota(char *mnt, char *username)
 	/* qctl should be zeros to start */
 	qctl = calloc(1,sizeof(*qctl));    
 	qctl->qc_cmd  = LUSTRE_Q_GETQUOTA;  // get info for specific user/groupt/etc.
-	qctl->qc_cmd  = LUSTRE_Q_GETINFO;  // get info for specific user/groupt/etc.
+//	qctl->qc_cmd  = LUSTRE_Q_GETINFO;  // get info for specific user/groupt/etc.
 	qctl->qc_type = USRQUOTA;           // get info for user
 
 	/* use $UID not $LOGNAME */ 
@@ -99,8 +111,8 @@ int exceeding_quota(char *mnt, char *username)
 	qctl->qc_dqblk.dqb_valid = 1 << 10;
 
 	printf("before sending:\n");
-	print_if_quotactl(qctl);
-
+//	print_if_quotactl(qctl);
+	print_flags(qctl->qc_dqinfo.dqi_flags);
 	
 	// goes to mdt across network
 	rc = llapi_quotactl(mnt, qctl);
@@ -110,8 +122,8 @@ int exceeding_quota(char *mnt, char *username)
 	}
 
 	printf("\nafter sending:\n");	
-	print_if_quotactl(qctl);
-
+//	print_if_quotactl(qctl);
+	print_flags(qctl->qc_dqinfo.dqi_flags);
 	return rc;
 }
 

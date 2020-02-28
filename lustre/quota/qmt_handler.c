@@ -30,6 +30,8 @@
 
 #define DEBUG_SUBSYSTEM S_LQUOTA
 
+
+#include <linux/printk.h>
 #include <obd_class.h>
 #include "qmt_internal.h"
 
@@ -75,8 +77,14 @@ static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 			*time |= (__u64)LQUOTA_FLAG_DEFAULT <<
 							LQUOTA_GRACE_BITS;
 	}
+/*
+	printk(KERN_ALERT "enforced=%d\nuptodate=%d\nedquot=%d\ngl=%d\nnopreacq=%d\nis_default=%d\n",
+	       lqe->lqe_enforced, lqe->lqe_uptodate, lqe->lqe_edquot, lqe->lqe_gl, 
+	       lqe->lqe_nopreacq, lqe->lqe_is_default);
+*/
+
 	// grabs the flags too
-	*flags = (__u32)(lqe->lqe_enforced      | lqe->lqe_uptodate << 1 |   \ 
+	*flags = (__u32)(lqe->lqe_enforced      | lqe->lqe_uptodate << 1 |   \
 			 lqe->lqe_edquot << 2   | lqe->lqe_gl << 3       |   \
 			 lqe->lqe_nopreacq << 4 | lqe->lqe_is_default << 5);
 
