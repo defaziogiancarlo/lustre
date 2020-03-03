@@ -28,7 +28,7 @@ bin_SCRIPTS   = llstat llobdstat plot-llstat
 bin_PROGRAMS  = lfs
 sbin_SCRIPTS  = ldlm_debug_upcall
 sbin_PROGRAMS = lctl l_getidentity llverfs lustre_rsync ll_decode_linkea \
-		llsom_sync test_quota_exceeded
+		llsom_sync test_quota_exceeded test_multi_quota
 
 if TESTS
 sbin_PROGRAMS += wiretest
@@ -70,6 +70,11 @@ lctl_DEPENDENCIES := liblustreapi.la
 test_quota_exceeded_SOURCES = test_quota_exceeded.c
 test_quota_exceeded_LDADD :=  liblustreapi.la $(PTHREAD_LIBS) -lyaml
 test_quota_exceeded_DEPENDENCIES := liblustreapi.la
+
+test_multi_quota_SOURCES = test_multi_quota.c
+test_multi_quota_LDADD :=  liblustreapi.la $(PTHREAD_LIBS) -lyaml
+test_multi_quota_DEPENDENCIES := liblustreapi.la
+
 
 lfs_SOURCES = lfs.c lfs_project.c lfs_project.h
 lfs_LDADD := liblustreapi.la -lz
