@@ -5926,9 +5926,9 @@ int llapi_group_unlock(int fd, int gid)
  *  Return 1 if user is exceeding quota
  *  Return negative value for errors
  */
-int llapi_exceeded_quota(const char *fsname, uid_t uid)
+int llapi_exceeded_quota(char *fsname, uid_t uid)
 {
-	itn rc = 0;
+	int rc = 0;
 
 	/* set up input to query only MDT000 */
 	struct if_quotactl qctl;
@@ -5945,6 +5945,6 @@ int llapi_exceeded_quota(const char *fsname, uid_t uid)
 	}
 
 	/* get edquot */
-	return (int)((qctl.qc_dqinfo.qui_flags >> 2) & 1);
+	return (int)((qctl.qc_dqinfo.dqi_flags >> 2) & 1);
 }
 
