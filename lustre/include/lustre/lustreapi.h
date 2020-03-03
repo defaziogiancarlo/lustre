@@ -1115,6 +1115,8 @@ int llapi_layout_sanity(struct llapi_layout *layout, bool incomplete, bool flr);
 void llapi_layout_sanity_perror(int error);
 int llapi_layout_dom_size(struct llapi_layout *layout, uint64_t *size);
 
+int llapi_exceeded_quota(const char *fsname, uid_t uid);
+
 /** @} llapi */
 
 #if defined(__cplusplus)
