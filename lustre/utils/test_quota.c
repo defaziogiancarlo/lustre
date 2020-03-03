@@ -1,9 +1,14 @@
-/* get the quota data and look at it */
+/* get the quota data and look at it
+ *
+ * also do some performance testing
+ */
 
 #include <lustre/lustreapi.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <time.h>
+#include <stdlib.h>
 
 #define GET_BIT(x,n) ((int)(((x) >> (n)) & 1))
 
@@ -75,31 +80,61 @@ void print_if_quotactl(struct if_quotactl *qctl)
 	print_obd_uuid(&(qctl->obd_uuid));
 }
 
-struct if_quotactl *init_if_quotactl()
+void set_if_quotactl(struct if_quotactl *qctl, char *username, int valid)
 {
- 	qctl = calloc(1,sizeof(*qctl));    
+	memset(qctl, 0, sizeof(*qctl));
 	qctl->qc_cmd  = LUSTRE_Q_GETQUOTA;  // get info for specific user/groupt/etc.
 //	qctl->qc_cmd  = LUSTRE_Q_GETINFO;  // get info for specific user/groupt/etc.
 	qctl->qc_type = USRQUOTA;           // get info for user
 
 	/* use $UID not $LOGNAME */ 
-	rc = name2uid(&(qctl->qc_id), username);
-	if (rc != 0) {
+	if (name2uid(&(qctl->qc_id), username) != 0) {
 		fprintf(stderr, "exceeding quota: user \"%s\" not found\n",
 			username);
-		return rc;
 	}
 
+	/* set dqb_valid so that only the mds is queried */
+	if (valid)
+		qctl->qc_dqblk.dqb_valid = 1;
+}
 
 
+struct if_quotactl *init_if_quotactl(char *username, int valid)
+{
+ 	struct if_quotactl *qctl = malloc(sizeof(*qctl));    
+	set_if_quotactl(qctl, username, valid);
+	return qctl;
 }
 
 
 
 
 /* check if the dqb_valid flags actually changes lookup time */
-void perf_test()
+int perf_test(char *mnt, char *username, int iters, int valid)
+{
+	struct timespec tsi;
+	struct timespec tsf;
 
+	int i = 0;
+	int rc = 0;
+	struct if_quotactl *qctl;
+	qctl = init_if_quotactl(username, valid);
+
+	for (i = 0; i < iters; ++i) {
+		clock_gettime(CLOCK_MONOTONIC, &tsi);
+		rc = llapi_quotactl(mnt, qctl);
+		clock_gettime(CLOCK_MONOTONIC, &tsf);
+		if (rc == -1) {
+			rc = -errno;
+			return rc;
+		}
+		double elaps_s = difftime(tsf.tv_sec, tsi.tv_sec);
+		long elaps_ns = tsf.tv_nsec - tsi.tv_nsec;
+		printf("%.13f\n",  elaps_s + ((double)elaps_ns) / 1.0e9);
+	}
+
+	return rc;
+}
 	
 
 
@@ -117,26 +152,12 @@ int exceeding_quota(char *mnt, char *username)
 	int rc;
 	struct if_quotactl *qctl;
 
-	/* qctl should be zeros to start */
- 	qctl = calloc(1,sizeof(*qctl));    
-	qctl->qc_cmd  = LUSTRE_Q_GETQUOTA;  // get info for specific user/groupt/etc.
-//	qctl->qc_cmd  = LUSTRE_Q_GETINFO;  // get info for specific user/groupt/etc.
-	qctl->qc_type = USRQUOTA;           // get info for user
-
-	/* use $UID not $LOGNAME */ 
-	rc = name2uid(&(qctl->qc_id), username);
-	if (rc != 0) {
-		fprintf(stderr, "exceeding quota: user \"%s\" not found\n",
-			username);
-		return rc;
-	}
-
-	/* set dqb_valid so that only the mds is queried */
-	qctl->qc_dqblk.dqb_valid = 1 << 10;
+	qctl = init_if_quotactl(username, 1);
+	
 
 	printf("before sending:\n");
-//	print_if_quotactl(qctl);
-	print_flags(qctl->qc_dqinfo.dqi_flags);
+	print_if_quotactl(qctl);
+	//print_flags(qctl->qc_dqinfo.dqi_flags);
 	
 	// goes to mdt across network
 	rc = llapi_quotactl(mnt, qctl);
@@ -146,8 +167,8 @@ int exceeding_quota(char *mnt, char *username)
 	}
 
 	printf("\nafter sending:\n");	
-//	print_if_quotactl(qctl);
-	print_flags(qctl->qc_dqinfo.dqi_flags);
+	print_if_quotactl(qctl);
+	//print_flags(qctl->qc_dqinfo.dqi_flags);
 	return rc;
 }
 
@@ -157,6 +178,9 @@ int main(int argc, char *argv[])
 {
 	char *mnt = argv[1];
 	char *username = argv[2];
-	exceeding_quota(mnt, username);
+	int iters = atoi(argv[3]);
+	int valid = atoi(argv[4]);
+//	exceeding_quota(mnt, username);
+	perf_test(mnt, username, iters, valid);
 	return 0;
 }
