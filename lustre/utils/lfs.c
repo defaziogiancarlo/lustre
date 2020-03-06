@@ -82,6 +82,9 @@
 # define ARRAY_SIZE(a) ((sizeof(a)) / (sizeof((a)[0])))
 #endif /* !ARRAY_SIZE */
 
+
+#define GET_BIT(x,n) ((int)(((x) >> (n)) & 1))
+
 /* all functions */
 static int lfs_find(int argc, char **argv);
 static int lfs_getstripe(int argc, char **argv);
@@ -705,6 +708,66 @@ command_t cmdlist[] = {
 	 "list commands supported by the utility and exit"},
 	{ 0, 0, 0, NULL }
 };
+
+
+
+static void print_obd_dqinfo(struct obd_dqinfo *x)
+{
+	printf("%s=%llu\n","dqi_bgrace", x->dqi_bgrace);
+	printf("%s=%llu\n","dqi_igrace", x->dqi_igrace);
+	printf("%s=0x%.6x\n","dqi_flags",   x->dqi_flags);
+	printf("%s=%u\n","dqi_valid",   x->dqi_valid);
+}
+
+static void print_obd_dqblk(struct obd_dqblk *x)
+{
+	printf("%s=%llu\n","dqb_bhardlimit", x->dqb_bhardlimit);
+	printf("%s=%llu\n","dqb_bsoftlimit", x->dqb_bsoftlimit);
+	printf("%s=%llu\n","dqb_curspace",   x->dqb_curspace);
+	printf("%s=%llu\n","dqb_ihardlimit", x->dqb_ihardlimit);
+	printf("%s=%llu\n","dqb_isoftlimit", x->dqb_isoftlimit);
+	printf("%s=%llu\n","dqb_curinodes",  x->dqb_curinodes);
+	printf("%s=%llu\n","dqb_btime",      x->dqb_btime);
+	printf("%s=%llu\n","dqb_itime",      x->dqb_itime);
+	printf("%s=%u\n","dqb_valid",       x->dqb_valid);
+	printf("%s=%u\n","dqb_padding",     x->dqb_padding);
+}
+
+static void print_obd_uuid(struct obd_uuid *x)
+{
+	printf("uuid=%.*s\n", (int)sizeof(x->uuid), x->uuid);
+}
+
+static void print_if_quotactl(struct if_quotactl *qctl)
+{
+	printf("%s=%u\n", "qc_cmd",   qctl->qc_cmd);
+	printf("%s=%u\n", "qc_type",  qctl->qc_type);
+	printf("%s=%u\n", "qc_id",    qctl->qc_id);
+	printf("%s=%u\n", "qc_stat",  qctl->qc_stat);
+	printf("%s=%u\n", "qc_valid", qctl->qc_valid);
+	printf("%s=%u\n", "qc_idx",   qctl->qc_idx);
+	printf("obd_dqinfo=\n");
+	print_obd_dqinfo(&(qctl->qc_dqinfo));
+	printf("obd_dqblk=\n");
+	print_obd_dqblk(&(qctl->qc_dqblk));
+	printf("obd_type=%.*s\n", (int)sizeof(qctl->obd_type), qctl->obd_type);
+	printf("obd_uuid=\n");
+	print_obd_uuid(&(qctl->obd_uuid));
+	printf("\n");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 static int check_hashtype(const char *hashtype)
@@ -7047,6 +7110,10 @@ static int print_obd_quota(char *mnt, struct if_quotactl *qctl, int is_mdt,
 
         for (qctl->qc_idx = 0; qctl->qc_idx < count; qctl->qc_idx++) {
                 qctl->qc_valid = is_mdt ? QC_MDTIDX : QC_OSTIDX;
+
+		// TODO
+		print_if_quotactl(qctl);
+
                 rc = llapi_quotactl(mnt, qctl);
                 if (rc) {
 			/* It is remote client case. */
@@ -7068,6 +7135,9 @@ static int print_obd_quota(char *mnt, struct if_quotactl *qctl, int is_mdt,
 				   qctl->qc_dqblk.dqb_bhardlimit;
 	}
 out:
+		// TODO
+		print_if_quotactl(qctl);
+
 	qctl->qc_valid = valid;
 	return rc ? : rc1;
 }
@@ -7083,6 +7153,9 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 	bool use_default_for_blk = false;
 	bool use_default_for_file = false;
 	int inacc;
+
+	// TODO
+	print_if_quotactl(qctl);
 
 	rc1 = llapi_quotactl(mnt, qctl);
 	if (rc1 < 0) {
