@@ -5937,7 +5937,7 @@ int llapi_exceeded_quota(char *fsname, uid_t uid)
 	qctl.qc_cmd = LUSTRE_Q_GETQUOTA;
 	qctl.qc_type = USRQUOTA;
 	qctl.qc_id = uid;
-	qctl.qc_dqblk.dqb_valid = 1;
+	qctl.qc_dqblk.dqb_valid = ~0;
 
 	rc = llapi_quotactl(fsname, &qctl);
 	if (rc < 0) {
