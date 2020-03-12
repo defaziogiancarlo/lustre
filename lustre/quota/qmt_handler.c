@@ -49,7 +49,8 @@
  */
 static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 		   __u8 restype, __u8 qtype, union lquota_id *id,
-		   __u64 *hard, __u64 *soft, __u64 *time, bool is_default)
+		   __u64 *hard, __u64 *soft, __u64 *time, __u32 *flags,
+		   bool is_default)
 {
 	struct lquota_entry	*lqe;
 	ENTRY;
@@ -74,6 +75,9 @@ static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 			*time |= (__u64)LQUOTA_FLAG_DEFAULT <<
 							LQUOTA_GRACE_BITS;
 	}
+	if (flags != NULL)
+		*flags = (__u32)lqe->lqe_edquot << 31;
+
 	lqe_read_unlock(lqe);
 
 	lqe_putref(lqe);
@@ -315,13 +319,15 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 
 		/* read inode grace time */
 		rc = qmt_get(env, qmt, LQUOTA_RES_MD, oqctl->qc_type, id,
-			     NULL, NULL, &oqctl->qc_dqinfo.dqi_igrace, false);
+			     NULL, NULL, &oqctl->qc_dqinfo.dqi_igrace,
+			     &oqctl->qc_dqinfo.dqi_flags, false);
 		if (rc)
 			break;
 
 		/* read block grace time */
 		rc = qmt_get(env, qmt, LQUOTA_RES_DT, oqctl->qc_type, id,
-			     NULL, NULL, &oqctl->qc_dqinfo.dqi_bgrace, false);
+			     NULL, NULL, &oqctl->qc_dqinfo.dqi_bgrace,
+			     &oqctl->qc_dqinfo.dqi_flags, false);
 		break;
 
 	case Q_SETINFO:  /* modify grace times */
@@ -359,7 +365,8 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 		/* look-up inode quota settings */
 		rc = qmt_get(env, qmt, LQUOTA_RES_MD, oqctl->qc_type, id,
 			     &dqb->dqb_ihardlimit, &dqb->dqb_isoftlimit,
-			     &dqb->dqb_itime, is_default);
+			     &dqb->dqb_itime, &oqctl->qc_dqinfo.dqi_flags,
+			     is_default);
 		if (rc)
 			break;
 
@@ -370,7 +377,8 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 		/* look-up block quota settings */
 		rc = qmt_get(env, qmt, LQUOTA_RES_DT, oqctl->qc_type, id,
 			     &dqb->dqb_bhardlimit, &dqb->dqb_bsoftlimit,
-			     &dqb->dqb_btime, is_default);
+			     &dqb->dqb_btime, &oqctl->qc_dqinfo.dqi_flags,
+			     is_default);
 		if (rc)
 			break;
 
