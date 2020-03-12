@@ -12,6 +12,8 @@ llapi_quotactl \- manipulate disk quotas on a Lustre filesystem
         __u32                   qc_type;
         __u32                   qc_id;
         __u32                   qc_stat;
+        __u32                   qc_valid;
+        __u32                   qc_idx;
         struct obd_dqinfo       qc_dqinfo;
         struct obd_dqblk        qc_dqblk;
         char                    obd_type[16];
@@ -85,7 +87,7 @@ is USRQUOTA or GRPQUOTA.
 .I uuid
 may be filled with OBD UUID string to query quota information from a specific node.
 .I dqb_valid
-may be set nonzero to query information only from MDS. If
+may be set nonzero to query information only from the QMT. If
 .I uuid
 is an empty string and
 .I dqb_valid
@@ -96,6 +98,9 @@ contains the requested information (block limits unit is kilobyte).
 and
 .I dqb_itime
 are block and inode softlimit grace period expiration timestamps for the requested user or group.
+The highest bit (31) of
+.I dqi_flags
+will be set if the user or group specified has exceeded a quota limit.
 
 Quotas must be turned on before using this command.
 .TP
