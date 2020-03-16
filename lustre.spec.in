@@ -77,6 +77,7 @@
 #%%global _use_internal_dependency_generator 0
 
 # Set the package name prefix
+%global lustre_name lustre
 %if %{undefined lustre_name}
     %if %{with servers}
         %global lustre_name lustre
