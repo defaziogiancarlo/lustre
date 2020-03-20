@@ -30,6 +30,9 @@
 
 #include "lquota_internal.h"
 
+#define LUSTRE_DQF_EDQUOT_B 30
+#define LUSTRE_DQF_EDQUOT (1 << LUSTRE_DQF_EDQUOT_B) /* is edquot? */
+
 /*
  * The Quota Master Target Device.
  * The qmt is responsible for:

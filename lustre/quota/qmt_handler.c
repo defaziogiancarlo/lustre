@@ -75,8 +75,8 @@ static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 			*time |= (__u64)LQUOTA_FLAG_DEFAULT <<
 							LQUOTA_GRACE_BITS;
 	}
-	if (flags != NULL)
-		*flags = (__u32)lqe->lqe_edquot << 31;
+	if (flags != NULL && lqe->lqe_edquot)
+		*flags |= (__u32)LUSTRE_DQF_EDQUOT;
 
 	lqe_read_unlock(lqe);
 
