@@ -7170,7 +7170,7 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 
 	if (show_edquot)
 		print_edquot(mnt, qctl);
-	else		
+	else
 		print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable,
 			    show_default);
 
