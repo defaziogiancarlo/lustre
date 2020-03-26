@@ -2255,6 +2255,7 @@ test_23() {
 run_test 23 "Quota should be honored with directIO (b16125)"
 
 test_24() {
+        echo "HELLO"
 	local blimit=5 # 5M
 	local TESTFILE="$DIR/$tdir/$tfile"
 

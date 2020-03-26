@@ -6929,7 +6929,7 @@ static void kbytes2str(__u64 num, char *buf, int buflen, bool h)
 /* print if exceeding quota for a mnt and user */
 static void print_edquot(char *mnt, struct if_quotactl *qctl)
 {
-	__u32 edquot = qctl->qc_dqinfo.qui_flags & LUSTRE_DQF_EDQUOT;
+	__u32 edquot = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT;
 	printf("%s %s\n", mnt, edquot ? "true" : "false");
 }
 
@@ -7388,8 +7388,9 @@ static int lfs_quota(int argc, char **argv)
 	while ((c = getopt(argc, argv, "egGi:I:o:pPqtuUvh")) != -1) {
 		switch (c) {
 		case 'e':
-			qctl.obd_dqblk.dqb_valid = ~0;
+			qctl.qc_dqblk.dqb_valid = ~0;
 			show_edquot = true;
+			break;
 		case 'U':
 			show_default = true;
 		case 'u':
