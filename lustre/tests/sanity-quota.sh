@@ -194,6 +194,19 @@ getquota() {
 		| tr -d "*"
 }
 
+# get edquot for a user or group
+# usage: getedquot -u|-g|-p <username>|<groupname>|<projid>
+# success if exceeding quota
+getedquot() {
+    local EXCEEDING
+    sync_all_data > /dev/null 2>&1 || true
+    [ "$#" != 2 ] && error "getedquot: wrong number of arguments: $#"
+    [ "$1" != "-u" -a "$1" != "-g" -a "$1" != "-p" ] &&
+          error "getedquot: wrong u/g/p specifier $1 passed"
+
+    $LFS quota -e "$1" "$2" $DIR | awk 'END { print $2 }'
+}
+
 # set mdt quota type
 # usage: set_mdt_qtype ugp|u|g|p|none
 set_mdt_qtype() {
@@ -623,6 +636,125 @@ test_1() {
 		"project quota isn't released after deletion"
 }
 run_test 1 "Block hard limit (normal use and out of quota)"
+
+# test block hardlimit edquot
+test_1a() {
+	local LIMIT=10  # 10M
+	local TESTFILE="$DIR/$tdir/$tfile-0"
+
+	setup_quota_test || error "setup quota failed with $?"
+	trap cleanup_quota_test EXIT
+
+	# enable ost quota
+	set_ost_qtype $QTYPE || error "enable ost quota failed"
+
+	# test for user
+	log "User quota (block hardlimit:$LIMIT MB)"
+	$LFS setquota -u $TSTUSR -b 0 -B ${LIMIT}M -i 0 -I 0 $DIR ||
+		error "set user quota failed"
+
+	# make sure the system is clean
+	local USED=$(getquota -u $TSTUSR global curspace)
+	[ $USED -ne 0 ] && error "Used space($USED) for user $TSTUSR isn't 0."
+
+	$LFS setstripe $TESTFILE -c 1 || error "setstripe $TESTFILE failed"
+	chown $TSTUSR.$TSTUSR $TESTFILE || error "chown $TESTFILE failed"
+
+	log "Write..."
+	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) ||
+		quota_error u $TSTUSR "user write failure, but expect success"
+	log "Write out of block quota ..."
+	# this time maybe cache write,  ignore it's failure
+	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) seek=$((LIMIT/2)) || true
+	# flush cache, ensure noquota flag is set on client
+	cancel_lru_locks osc
+	sync; sync_all_data || true
+	$RUNAS $DD of=$TESTFILE count=1 seek=$LIMIT &&
+		quota_error u $TSTUSR "user write success, but expect EDQUOT"
+
+	rm -f $TESTFILE
+	wait_delete_completed || error "wait_delete_completed failed"
+	sync_all_data || true
+	USED=$(getquota -u $TSTUSR global curspace)
+	[ $USED -ne 0 ] && quota_error u $TSTUSR \
+		"user quota isn't released after deletion"
+	resetquota -u $TSTUSR
+
+	# test for group
+	log "--------------------------------------"
+	log "Group quota (block hardlimit:$LIMIT MB)"
+	$LFS setquota -g $TSTUSR -b 0 -B ${LIMIT}M -i 0 -I 0 $DIR ||
+		error "set group quota failed"
+
+	TESTFILE="$DIR/$tdir/$tfile-1"
+	# make sure the system is clean
+	USED=$(getquota -g $TSTUSR global curspace)
+	[ $USED -ne 0 ] && error "Used space ($USED) for group $TSTUSR isn't 0"
+
+	$LFS setstripe $TESTFILE -c 1 || error "setstripe $TESTFILE failed"
+	chown $TSTUSR.$TSTUSR $TESTFILE || error "chown $TESTFILE failed"
+
+	log "Write ..."
+	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) ||
+		quota_error g $TSTUSR "Group write failure, but expect success"
+	log "Write out of block quota ..."
+	# this time maybe cache write, ignore it's failure
+	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) seek=$((LIMIT/2)) || true
+	cancel_lru_locks osc
+	sync; sync_all_data || true
+	$RUNAS $DD of=$TESTFILE count=10 seek=$LIMIT &&
+		quota_error g $TSTUSR "Group write success, but expect EDQUOT"
+	rm -f $TESTFILE
+	wait_delete_completed || error "wait_delete_completed failed"
+	sync_all_data || true
+	USED=$(getquota -g $TSTUSR global curspace)
+	[ $USED -ne 0 ] && quota_error g $TSTUSR \
+				"Group quota isn't released after deletion"
+	resetquota -g $TSTUSR
+
+	if ! is_project_quota_supported; then
+		echo "Project quota is not supported"
+		cleanup_quota_test
+		return 0
+	fi
+
+	TESTFILE="$DIR/$tdir/$tfile-2"
+	# make sure the system is clean
+	USED=$(getquota -p $TSTPRJID global curspace)
+	[ $USED -ne 0 ] &&
+		error "used space($USED) for project $TSTPRJID isn't 0"
+
+	# test for Project
+	log "--------------------------------------"
+	log "Project quota (block hardlimit:$LIMIT mb)"
+	$LFS setquota -p $TSTPRJID -b 0 -B ${LIMIT}M -i 0 -I 0 $DIR ||
+		error "set project quota failed"
+
+	$LFS setstripe $TESTFILE -c 1 || error "setstripe $TESTFILE failed"
+	chown $TSTUSR:$TSTUSR $TESTFILE || error "chown $TESTFILE failed"
+	change_project -p $TSTPRJID $TESTFILE
+
+	log "write ..."
+	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) || quota_error p $TSTPRJID \
+		"project write failure, but expect success"
+	log "write out of block quota ..."
+	# this time maybe cache write, ignore it's failure
+	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) seek=$((LIMIT/2)) || true
+	cancel_lru_locks osc
+	sync; sync_all_data || true
+	$RUNAS $DD of=$TESTFILE count=10 seek=$LIMIT && quota_error p \
+		$TSTPRJID "project write success, but expect EDQUOT"
+
+	# cleanup
+	cleanup_quota_test
+
+	USED=$(getquota -p $TSTPRJID global curspace)
+	[ $USED -eq 0 ] || quota_error p $TSTPRJID \
+		"project quota isn't released after deletion"
+}
+run_test 1a "Block hard limit (normal use and out of quota) and edquot flag"
+
+
 
 # test inode hardlimit
 test_2() {
