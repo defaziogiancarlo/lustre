@@ -89,6 +89,13 @@ extern "C" {
 #define PRJQUOTA 2
 #endif
 
+#ifndef LUSTRE_DQF_EDQUOT_
+#define LUSTRE_DQF_EDQUOT_B 30
+#endif
+#ifndef LUSTRE_DQF_EDQUOT
+#define LUSTRE_DQF_EDQUOT (1 << LUSTRE_DQF_EDQUOT_B) /* is edquot? */
+#endif
+
 /*
  * We need to always use 64bit version because the structure
  * is shared across entire cluster where 32bit and 64bit machines
