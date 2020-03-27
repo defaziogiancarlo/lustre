@@ -1,3 +1,6 @@
+FSTYPE=zfs
+MDSCOUNT=2
+
 FSNAME=${FSNAME:-lustre}
 
 # facet hosts
