@@ -6928,8 +6928,18 @@ static void kbytes2str(__u64 num, char *buf, int buflen, bool h)
 /* print if exceeding quota for a mnt and user */
 static void print_edquot(char *mnt, struct if_quotactl *qctl)
 {
+	__u32 edquot_valid = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT_SUPPORTED;
 	__u32 edquot = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT;
-	printf("%s %s\n", mnt, edquot ? "true" : "false");
+	char* status;
+	if (!edquot_valid) {
+		status = "unsupported";
+	} else {
+		if (edquot) 
+			status = "true";
+		else
+			status = "false";
+	}
+	printf("%s %s\n", mnt, status);
 }
 
 
