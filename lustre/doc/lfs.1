@@ -204,6 +204,9 @@ or the OSTs in
 .B quota [-q] [-v] [-o obd_uuid|-i mdt_idx|-I ost_idx] [-u|-g|-p <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>
 To display disk usage and limits, either for the full filesystem, or for objects on a specific obd. A user or group name or an ID can be specified. If user group and project are omitted quotas for current uid/gid/projid are shown. -v provides more verbose (with per-obd statistics) output. -q disables printing of additional descriptions (including column titles).
 .TP
+.B quota -e [-u|-g|-p <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>
+To display whether or not a quota limit is reached for a user, group, or project. Will display true if either a block or inode limit has been exceeded. May be more performant than using other versions of lfs to just check if a quota is exceeded.
+.TP
 .B quota -t <-u|-g|-p> <filesystem>
 To display block and inode grace times for user (-u) or group (-g) or project (-p) quotas
 .TP
@@ -264,6 +267,9 @@ List all the MDTs
 .TP
 .B $ lfs quota -u bob /mnt/lustre
 List quotas of user `bob'
+.TP
+.B $ lfs quota -e -u bob /mnt/lustre
+Check if user `bob' is exceeding some quota.
 .TP
 .B $ lfs quota -U /mnt/lustre
 List user quotas of system default setting
