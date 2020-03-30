@@ -546,6 +546,7 @@ command_t cmdlist[] = {
 	 "usage: quota [-q] [-v] [-h] [-o <obd_uuid>|-i <mdt_idx>|-I "
 		       "<ost_idx>]\n"
 	 "             [<-u|-g|-p> <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>\n"
+	 "       quota [-e] [<-u|-g|-p> <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>\n"
 	 "       quota [-o <obd_uuid>|-i <mdt_idx>|-I <ost_idx>] -t <-u|-g|-p> <filesystem>\n"
 	"	 quota [-q] [-v] [h] <-U|-G|-P> <filesystem>"},
 	{"project", lfs_project, 0,
