@@ -30,6 +30,9 @@
 
 #include "lquota_internal.h"
 
+/* does the edquot bit mean anything? */
+#define LUSTRE_DQF_EDQUOT_SUPPORTED_B 31
+#define LUSTRE_DQF_EDQUOT_SUPPORTED (1 << LUSTRE_DQF_EDQUOT_SUPPORTED_B)
 #define LUSTRE_DQF_EDQUOT_B 30
 #define LUSTRE_DQF_EDQUOT (1 << LUSTRE_DQF_EDQUOT_B) /* is edquot? */
 
