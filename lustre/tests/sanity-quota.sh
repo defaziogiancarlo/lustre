@@ -195,16 +195,27 @@ getquota() {
 }
 
 # get edquot for a user or group
-# usage: getedquot -u|-g|-p <username>|<groupname>|<projid>
-# success if exceeding quota
-getedquot() {
-    local EXCEEDING
-    sync_all_data > /dev/null 2>&1 || true
-    [ "$#" != 2 ] && error "getedquot: wrong number of arguments: $#"
-    [ "$1" != "-u" -a "$1" != "-g" -a "$1" != "-p" ] &&
-          error "getedquot: wrong u/g/p specifier $1 passed"
+# usage: assert_edquot -u|-g|-p <username>|<groupname>|<projid> true|false
+assert_edquot() {
+    local flag
+    local id
+    local assertion
+    local edquot
 
-    $LFS quota -e "$1" "$2" $DIR | awk 'END { print $2 }'
+    [ "$#" != 3 ] && error "assert_edquot: wrong number of arguments: $#"
+    flag=$1
+    id=$2
+    assertion=$3
+    [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+          error "assert_edquot: wrong u/g/p specifier $flag passed"
+
+    [ "$assertion" != "true" -a "$assertion" != "false" ] &&
+          error "assert_edquot: wrong true|false assertion $assertion passed"
+
+    edquot=$($LFS quota -e "$flag" "$id" $DIR | awk 'END { print $2 }')
+    [ $edquot = $assertion ] ||
+          quota_error "${flag:2:1}" $id "error edquot $edquot but expect $assertion"
+
 }
 
 # set mdt quota type
@@ -663,12 +674,18 @@ test_1a() {
 	log "Write..."
 	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) ||
 		quota_error u $TSTUSR "user write failure, but expect success"
+
+	assert_edquot -u $TSTUSR false
+
 	log "Write out of block quota ..."
 	# this time maybe cache write,  ignore it's failure
 	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) seek=$((LIMIT/2)) || true
 	# flush cache, ensure noquota flag is set on client
 	cancel_lru_locks osc
 	sync; sync_all_data || true
+
+	assert_edquot -u $TSTUSR true
+
 	$RUNAS $DD of=$TESTFILE count=1 seek=$LIMIT &&
 		quota_error u $TSTUSR "user write success, but expect EDQUOT"
 
@@ -678,6 +695,9 @@ test_1a() {
 	USED=$(getquota -u $TSTUSR global curspace)
 	[ $USED -ne 0 ] && quota_error u $TSTUSR \
 		"user quota isn't released after deletion"
+
+	assert_edquot -u $TSTUSR false
+
 	resetquota -u $TSTUSR
 
 	# test for group
@@ -697,11 +717,17 @@ test_1a() {
 	log "Write ..."
 	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) ||
 		quota_error g $TSTUSR "Group write failure, but expect success"
+
+	assert_edquot -g $TSTUSR false
+
 	log "Write out of block quota ..."
 	# this time maybe cache write, ignore it's failure
 	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) seek=$((LIMIT/2)) || true
 	cancel_lru_locks osc
 	sync; sync_all_data || true
+
+	assert_edquot -g $TSTUSR true
+
 	$RUNAS $DD of=$TESTFILE count=10 seek=$LIMIT &&
 		quota_error g $TSTUSR "Group write success, but expect EDQUOT"
 	rm -f $TESTFILE
@@ -710,6 +736,9 @@ test_1a() {
 	USED=$(getquota -g $TSTUSR global curspace)
 	[ $USED -ne 0 ] && quota_error g $TSTUSR \
 				"Group quota isn't released after deletion"
+
+	assert_edquot -g $TSTUSR false
+
 	resetquota -g $TSTUSR
 
 	if ! is_project_quota_supported; then
@@ -737,11 +766,17 @@ test_1a() {
 	log "write ..."
 	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) || quota_error p $TSTPRJID \
 		"project write failure, but expect success"
+
+	assert_edquot -p $TSTPRJID false
+
 	log "write out of block quota ..."
 	# this time maybe cache write, ignore it's failure
 	$RUNAS $DD of=$TESTFILE count=$((LIMIT/2)) seek=$((LIMIT/2)) || true
 	cancel_lru_locks osc
 	sync; sync_all_data || true
+
+	assert_edquot -p $TSTPRJID true
+
 	$RUNAS $DD of=$TESTFILE count=10 seek=$LIMIT && quota_error p \
 		$TSTPRJID "project write success, but expect EDQUOT"
 
