@@ -194,28 +194,43 @@ getquota() {
 		| tr -d "*"
 }
 
+# check if edquot supported
+# if not, it should say "unsupported"
+edquot_supported() {
+	local id
+	local quota_status
+
+	[ "$#" != 1 ] && error "edquot_supported: wrong number of arguments: $#"
+	id=$1
+
+	quota_status=$($LFS quota -q -e -u "id" $DIR | awk 'END { print $2 }')
+
+	[ $quota_status = "unsupported" ] && return 1
+	[ $quota_status = "true" -o $quota_status = "false" ] && return 0
+	quota_error "invalid edquot status"
+}
+
 # get edquot for a user or group
 # usage: assert_edquot -u|-g|-p <username>|<groupname>|<projid> true|false
 assert_edquot() {
-    local flag
-    local id
-    local assertion
-    local edquot
+	local flag
+	local id
+	local assertion
+	local edquot
 
-    [ "$#" != 3 ] && error "assert_edquot: wrong number of arguments: $#"
-    flag=$1
-    id=$2
-    assertion=$3
-    [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
-          error "assert_edquot: wrong u/g/p specifier $flag passed"
+	[ "$#" != 3 ] && error "assert_edquot: wrong number of arguments: $#"
+	flag=$1
+	id=$2
+	assertion=$3
+	[ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+		error "assert_edquot: wrong u/g/p specifier $flag passed"
 
-    [ "$assertion" != "true" -a "$assertion" != "false" ] &&
-          error "assert_edquot: wrong true|false assertion $assertion passed"
+	[ "$assertion" != "true" -a "$assertion" != "false" ] &&
+        	error "assert_edquot: wrong true|false assertion $assertion passed"
 
-    edquot=$($LFS quota -e "$flag" "$id" $DIR | awk 'END { print $2 }')
-    [ $edquot = $assertion ] ||
-          quota_error "${flag:2:1}" $id "error edquot $edquot but expect $assertion"
-
+	edquot=$($LFS quota -e "$flag" "$id" $DIR | awk 'END { print $2 }')
+	[ $edquot = $assertion ] ||
+        	quota_error "${flag:2:1}" $id "error edquot $edquot but expect $assertion"
 }
 
 # set mdt quota type
@@ -664,9 +679,17 @@ test_1a() {
 	$LFS setquota -u $TSTUSR -b 0 -B ${LIMIT}M -i 0 -I 0 $DIR ||
 		error "set user quota failed"
 
+	# check if edquot is supported
+	if ! is_edquot_supported $TSTUSR; then
+		echo "edquot not supported"
+		cleanup_quota_test
+		return 0
+	fi
+
 	# make sure the system is clean
 	local USED=$(getquota -u $TSTUSR global curspace)
 	[ $USED -ne 0 ] && error "Used space($USED) for user $TSTUSR isn't 0."
+
 
 	$LFS setstripe $TESTFILE -c 1 || error "setstripe $TESTFILE failed"
 	chown $TSTUSR.$TSTUSR $TESTFILE || error "chown $TESTFILE failed"
