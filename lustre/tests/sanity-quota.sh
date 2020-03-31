@@ -230,11 +230,11 @@ assert_edquot() {
 		error "assert_edquot: wrong u/g/p specifier $flag passed"
 
 	[ "$assertion" != "true" -a "$assertion" != "false" ] &&
-        	error "assert_edquot: wrong true|false assertion $assertion passed"
+		error "assert_edquot: wrong true|false assertion $assertion passed"
 
 	edquot=$($LFS quota -q -e "$flag" "$id" $DIR | awk 'END { print $2 }')
 	[ $edquot = $assertion ] ||
-        	quota_error "${flag:2:1}" $id "error edquot $edquot but expect $assertion"
+		quota_error "${flag:2:1}" $id "error edquot $edquot but expect $assertion"
 }
 
 # set mdt quota type
@@ -816,8 +816,6 @@ test_1a() {
 }
 run_test 1a "Block hard limit (normal use and out of quota) and edquot flag"
 
-
-
 # test inode hardlimit
 test_2() {
 	local LIMIT=$((1024 * 1024)) # 1M inodes
@@ -921,176 +919,6 @@ test_2() {
 
 }
 run_test 2 "File hard limit (normal use and out of quota)"
-
-
-# test inode hardlimit
-test_2a() {
-	local LIMIT=$((1024 * 1024)) # 1M inodes
-	local TESTFILE="$DIR/$tdir/$tfile-0"
-
-	[ "$SLOW" = "no" ] && LIMIT=1024 # 1k inodes
-
-	local FREE_INODES=$(mdt_free_inodes 0)
-	echo "$FREE_INODES free inodes on master MDT"
-	[ $FREE_INODES -lt $LIMIT ] &&
-		skip "not enough free inodes $FREE_INODES required $LIMIT"
-
-	setup_quota_test || error "setup quota failed with $?"
-	trap cleanup_quota_test EXIT
-
-	# enable mdt quota
-	set_mdt_qtype $QTYPE || error "enable mdt quota failed"
-
-	# test for user
-	log "User quota (inode hardlimit:$LIMIT files)"
-	$LFS setquota -u $TSTUSR -b 0 -B 0 -i 0 -I $LIMIT $DIR ||
-		error "set user quota failed"
-
-	# check if edquot is supported
-	if ! is_edquot_supported $TSTUSR; then
-		echo "edquot not supported"
-		cleanup_quota_test
-		return 0
-	fi
-
-	# make sure the system is clean
-	local USED=$(getquota -u $TSTUSR global curinodes)
-	[ $USED -ne 0 ] && error "Used inodes($USED) for user $TSTUSR isn't 0."
-
-	assert_edquot -u $TSTUSR false
-
-	log "Create $LIMIT files ..."
-	$RUNAS createmany -m ${TESTFILE} $LIMIT ||
-		quota_error u $TSTUSR "user create failure, but expect success"
-
-	assert_edquot -u $TSTUSR true
-
-	log "Create out of file quota ..."
-	$RUNAS touch ${TESTFILE}_xxx &&
-		quota_error u $TSTUSR "user create success, but expect EDQUOT"
-
-	assert_edquot -u $TSTUSR true
-
-	$LFS quota -u $TSTUSR $DIR
-
-	$LFS quota -e -u $TSTUSR $DIR
-
-
-	# cleanup
-	unlinkmany ${TESTFILE} $LIMIT || error "unlinkmany $TESTFILE failed"
-	rm -f ${TESTFILE}_xxx
-	wait_delete_completed
-
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-	# wait_delete_completed
-
-#	$RUNAS touch ${TESTFILE}_xxx 
-
-	$LFS quota -u $TSTUSR $DIR
-
-	$LFS quota -e -u $TSTUSR $DIR
-
-#	assert_edquot -u $TSTUSR false
-
-	USED=$(getquota -u $TSTUSR global curinodes)
-	[ $USED -ne 0 ] && quota_error u $TSTUSR \
-		"user quota isn't released after deletion"
-
-	resetquota -u $TSTUSR
-
-	# test for group
-	log "--------------------------------------"
-	log "Group quota (inode hardlimit:$LIMIT files)"
-	$LFS setquota -g $TSTUSR -b 0 -B 0 -i 0 -I $LIMIT $DIR ||
-		error "set group quota failed"
-
-	TESTFILE=$DIR/$tdir/$tfile-1
-	# make sure the system is clean
-	USED=$(getquota -g $TSTUSR global curinodes)
-	[ $USED -ne 0 ] && error "Used inodes($USED) for group $TSTUSR isn't 0."
-
-	assert_edquot -g $TSTUSR false
-
-	log "Create $LIMIT files ..."
-	$RUNAS createmany -m ${TESTFILE} $LIMIT ||
-		quota_error g $TSTUSR "group create failure, but expect success"
-
-	assert_edquot -g $TSTUSR true
-
-	log "Create out of file quota ..."
-	$RUNAS touch ${TESTFILE}_xxx &&
-		quota_error g $TSTUSR "group create success, but expect EDQUOT"
-
-	assert_edquot -g $TSTUSR true
-
-	# cleanup
-	unlinkmany ${TESTFILE} $LIMIT || error "unlinkmany $TESTFILE failed"
-	rm -f ${TESTFILE}_xxx
-	wait_delete_completed
-
-	USED=$(getquota -g $TSTUSR global curinodes)
-	[ $USED -ne 0 ] && quota_error g $TSTUSR \
-		"user quota isn't released after deletion"
-
-	$LFS quota -g $TSTUSR $DIR
-
-	#assert_edquot -g $TSTUSR false
-
-	resetquota -g $TSTUSR
-	! is_project_quota_supported && cleanup_quota_test &&
-		echo "Skip project quota is not supported" && return 0
-
-	# test for project
-	log "--------------------------------------"
-	log "Project quota (inode hardlimit:$LIMIT files)"
-	$LFS setquota -p $TSTPRJID -b 0 -B 0 -i 0 -I $LIMIT $DIR ||
-		error "set project quota failed"
-
-	TESTFILE=$DIR/$tdir/$tfile-1
-	# make sure the system is clean
-	USED=$(getquota -p $TSTPRJID global curinodes)
-	[ $USED -ne 0 ] &&
-		error "Used inodes($USED) for project $TSTPRJID isn't 0"
-
-	assert_edquot -p $TSTPRJID false
-
-	change_project -sp $TSTPRJID $DIR/$tdir
-	log "Create $LIMIT files ..."
-	$RUNAS createmany -m ${TESTFILE} $((LIMIT-1)) || quota_error p \
-		$TSTPRJID "project create fail, but expect success"
-
-	$LFS quota -p $TSTPRJID $DIR 
-
-	$LFS quota -e -p $TSTPRJID $DIR 
-
-	#assert_edquot -p $TSTPRJID false
-
-	log "Create out of file quota ..."
-	$RUNAS touch ${TESTFILE}_xxx && quota_error p $TSTPRJID \
-		"project create success, but expect EDQUOT"
-
-	assert_edquot -p $TSTPRJID true
-
-	change_project -C $DIR/$tdir
-
-	cleanup_quota_test
-	USED=$(getquota -p $TSTPRJID global curinodes)
-	[ $USED -eq 0 ] || quota_error p $TSTPRJID \
-		"project quota isn't released after deletion"
-
-}
-run_test 2a "File hard limit (normal use and out of quota) and edquot flag"
-
 
 test_block_soft() {
 	local TESTFILE=$1
@@ -2619,7 +2447,6 @@ test_23() {
 run_test 23 "Quota should be honored with directIO (b16125)"
 
 test_24() {
-        echo "HELLO"
 	local blimit=5 # 5M
 	local TESTFILE="$DIR/$tdir/$tfile"
 

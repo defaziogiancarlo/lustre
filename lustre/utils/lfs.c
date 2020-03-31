@@ -6936,7 +6936,7 @@ static void print_edquot(char *mnt, struct if_quotactl *qctl)
 	if (!edquot_valid) {
 		status = "unsupported";
 	} else {
-		if (edquot) 
+		if (edquot)
 			status = "true";
 		else
 			status = "false";
