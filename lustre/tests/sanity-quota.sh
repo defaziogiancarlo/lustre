@@ -971,16 +971,40 @@ test_2a() {
 
 	assert_edquot -u $TSTUSR true
 
+	$LFS quota -u $TSTUSR $DIR
+
+	$LFS quota -e -u $TSTUSR $DIR
+
+
 	# cleanup
 	unlinkmany ${TESTFILE} $LIMIT || error "unlinkmany $TESTFILE failed"
 	rm -f ${TESTFILE}_xxx
 	wait_delete_completed
 
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+	# wait_delete_completed
+
+#	$RUNAS touch ${TESTFILE}_xxx 
+
+	$LFS quota -u $TSTUSR $DIR
+
+	$LFS quota -e -u $TSTUSR $DIR
+
+#	assert_edquot -u $TSTUSR false
+
 	USED=$(getquota -u $TSTUSR global curinodes)
 	[ $USED -ne 0 ] && quota_error u $TSTUSR \
 		"user quota isn't released after deletion"
-
-	assert_edquot -u $TSTUSR false
 
 	resetquota -u $TSTUSR
 
@@ -1018,7 +1042,9 @@ test_2a() {
 	[ $USED -ne 0 ] && quota_error g $TSTUSR \
 		"user quota isn't released after deletion"
 
-	assert_edquot -g $TSTUSR false
+	$LFS quota -g $TSTUSR $DIR
+
+	#assert_edquot -g $TSTUSR false
 
 	resetquota -g $TSTUSR
 	! is_project_quota_supported && cleanup_quota_test &&
@@ -1043,7 +1069,11 @@ test_2a() {
 	$RUNAS createmany -m ${TESTFILE} $((LIMIT-1)) || quota_error p \
 		$TSTPRJID "project create fail, but expect success"
 
-	assert_edquot -p $TSTPRJID false
+	$LFS quota -p $TSTPRJID $DIR 
+
+	$LFS quota -e -p $TSTPRJID $DIR 
+
+	#assert_edquot -p $TSTPRJID false
 
 	log "Create out of file quota ..."
 	$RUNAS touch ${TESTFILE}_xxx && quota_error p $TSTPRJID \
