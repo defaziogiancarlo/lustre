@@ -196,6 +196,7 @@ getquota() {
 
 # check if edquot supported
 # if not, it should say "unsupported"
+# usage: is_edquot_supported <username>|<uid>
 is_edquot_supported() {
 	local id
 	local quota_status
@@ -210,7 +211,8 @@ is_edquot_supported() {
 	quota_error "invalid edquot status"
 }
 
-# get edquot for a user or group
+# assert that a user, group, or project has exceeded some quota (true)
+# or has not exceeeded any quota (false)
 # usage: assert_edquot -u|-g|-p <username>|<groupname>|<projid> true|false
 assert_edquot() {
 	local flag
@@ -1034,20 +1036,20 @@ test_2a() {
 	[ $USED -ne 0 ] &&
 		error "Used inodes($USED) for project $TSTPRJID isn't 0"
 
-	assert_edquot -g $TSTUSR false
+	assert_edquot -p $TSTPRJID false
 
 	change_project -sp $TSTPRJID $DIR/$tdir
 	log "Create $LIMIT files ..."
 	$RUNAS createmany -m ${TESTFILE} $((LIMIT-1)) || quota_error p \
 		$TSTPRJID "project create fail, but expect success"
 
-	assert_edquot -g $TSTUSR false
+	assert_edquot -p $TSTPRJID false
 
 	log "Create out of file quota ..."
 	$RUNAS touch ${TESTFILE}_xxx && quota_error p $TSTPRJID \
 		"project create success, but expect EDQUOT"
 
-	assert_edquot -g $TSTUSR true
+	assert_edquot -p $TSTPRJID true
 
 	change_project -C $DIR/$tdir
 
