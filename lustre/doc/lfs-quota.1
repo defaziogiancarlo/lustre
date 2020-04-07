@@ -1,148 +1,121 @@
 .TH LFS-QUOTA 1 2020-04-06 "Lustre" "Lustre Utilities"
 .SH NAME
-lfs quota \- query quota limits and status for users, groups or projects.
+lfs quota \- display quota limits and status for users, groups or projects.
 .SH SYNOPSIS
-.B lfs quota \fR[\fB-qv\fR] [\fB-o \fIobd_uuid\fR|\fB-I \fIost_idx\fR|\fB-i \fImdt_idx\fR]
-          [\fB-u <\fIuname\fR|\fIuid\fR>|\fB-g <\fIgname\fR|\fIgid\fR>|\fB-p <\fIprojid\fR>] 
-	<\fIfilesystem\fR>\fR
+.B lfs quota \fR[\fB-hqv\fR] 
+       [\fB-o <\fIobd_uuid\fR>|\fB-I <\fIost_idx\fR>|\fB-i <\fImdt_idx\fR>]
+       [\fB-u <\fIuname\fR|\fIuid\fR>|\fB-g <\fIgname\fR|\fIgid\fR>\
+|\fB-p <\fIprojid\fR>] 
+       <\fIfilesystem\fR>\fR
+
+.br
+.B lfs quota \fR[\fB-hqv\fR] \fR<\fB-U\fR|\fB-G\fR|\fB-P\fR> <\fIfilesystem\fR>
+.br
 
 .br
 .B lfs quota -t \fR<\fB-u\fR|\fB-g\fR|\fB-p\fR> <\fIfilesystem\fR>
 .br
 
-.B quota [-q] [-v] [-o obd_uuid|-i mdt_idx|-I ost_idx] [-u|-g|-p <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>
-To display disk usage and limits, either for the full filesystem, or for objects on a specific obd. A user or group name or an ID can be specified. If user group and project are omitted quotas for current uid/gid/projid are shown. -v provides more verbose (with per-obd statistics) output. -q disables printing of additional descriptions (including column titles).
-.TP
-.B quota -t [-hqv] <-u|-U|-g|-G|-p|-P> <filesystem>
-To display block and inode grace times for users (-u|-U) or groups (-g|-G) or projects (-p|-P).
-The limits displayed are globabl values for the filesystem.
-The upper and lower case options make no difference for this command. The (-hqv) options are allowed
-but do nothing. The grace period seconds are always displayed in human readable form.
-.TP
-.B quota -e [-hqv] <-u|-U|-g|-G|-p|-P> <filesystem>
-To display block and inode grace times for users (-u|-U) or groups (-g|-G) or projects (-p|-P).
-The limits displayed are globabl values for the filesystem.
-The upper and lower case options make no difference for this command. The (-hqv) options are allowed
-but do nothing. The grace period seconds are always displayed in human readable form.
 .TP
 .TP
 .SH DESCRIPTION
 .PP
-.BR "lfs quota " {\fB-u|-g|-p\fR}
+.BR "lfs quota " <\fIfilesystem\fR>
 .TP
-Command displays quota data for users, groups or projects. \
+Display disk usage and limits, either for the full filesystem, \
+or for objects on a specific obd. A user or group name or an ID can \
+be specified. If user, group and project are omitted, quotas for \
+current uid/gid/projid are shown. 
 
-Command sets the filesystem quotas for users, groups or projects respectively. \
-Block limits unit is kilobyte (1024) by default and block limits are always \
-kilobyte-grained (even if specified in bytes), block limits can be specified \
-with a \
-.BR k "," M "," G "," T "," P ", or " E \
-suffixes which specify units of 2^10, 2^20, 2^30, 2^40, 2^50 and 2^60 \
-accordingly.
 .TP
-.B -u <\fIuname|uid\fR>
-Get user quota information for \fIuname\fR or \fIuid\fR.
+.B -h
+Human readable. This will change the formatting of \
+block storage and time values. Without this option block storage values \
+are in kilobytes and times are in seconds. With this option block storage \
+values use the common metric suffixes
+.BR k "," M "," G "," T "," P "," E
+which specify units of 2^10, 2^20, 2^30, 2^40, 2^50 and 2^60 \
+respectively. 
+Time values use the "XXwXXdXXhXXmXXs" format. This format specifies \
+weeks, days, hours, minutes, seconds.
 .TP
-.B -U <\fIuname|uid\fR>
-Get user quota information for \fIuname\fR or \fIuid\fR.
-.TP
-.B -g <\fIgname|gid\fR>
-Get group quota information for name \fIgname\fR or \fIgid\fR.
-.TP
-.B -G <\fIgname|gid\fR>
-Get group quota information for name \fIgname\fR or \fIgid\fR.
-.TP
-.B -p <\fIprojid\fR>
-Get project quota information for \fIprojid\fR.
-.TP
-.B -P <\fIprojid\fR>
-Get project quota information for \fIprojid\fR.
-.TP
-.B -i <\fIinode-softlimit\fR>
-Specify inode softlimit, zero means unlimited.
-.TP
-.B -i <\fIinode-softlimit\fR>
-Specify inode softlimit, zero means unlimited.
-.TP
-.B -i <\fIinode-softlimit\fR>
-Specify inode softlimit, zero means unlimited.
-.TP
-.B -t
-Get grace times for users, groups or projects. \
-The times returned are global for the filesystem.
-.TP
-.B -q <\fIinode-softlimit\fR>
+.B -q
 Quiet. Display only the line containing the data. \
 The line saying what the data is, and the line with the data
 column headers will not be printed.
 .TP
-git .B -I <\fIinode-hardlimit\fR>
-Specify inode hardlimit, zero means unlimited. The inode hardlimit should be \
-greater than inode softlimit when it's being specified.
+.B -v
+Verbose. Display per-obd statistics in addition to the usual \
+system wide data.
+.TP
+.B -u <\fIuname|uid\fR>
+Display user quota information for \fIuname\fR or \fIuid\fR.
+.TP
+.B -g <\fIgname|gid\fR>
+Display group quota information for name \fIgname\fR or \fIgid\fR.
+.TP
+.B -p <\fIprojid\fR>
+Display project quota information for \fIprojid\fR.
+.TP
+.B -o <\fIobd_uuid\fR>
+Display quota information for \fIobd_uuid\fR.
+.TP
+.B -i <\fImdt_idx\fR>
+Display project quota information for \fImdt_idx\fR.
+.TP
+.B -I <\fIost_idx\fR>
+Display project quota information for \fIost_idx\fR.
+
 .PP
-.BR "lfs setquota -t "
+.BR "lfs quota " \fR<\fB-U\fR|\fB-G\fR|\fB-P\fR> <\fIfilesystem\fR>
 .TP
-Command sets the filesystem quota grace time for users, groups, or projects. \
-This is a global value that can take two forms: an amount of time or the word \
-\'\fBnotify\fR'.  Traditionally, this indicates the amount of time in seconds \
-that the soft quota limit can be exceeded before users are prevented from \
-creating new files or consuming more space.  This is intended to allow users \
-to exceed the quota limit for a short time to complete their work without \
-having to grant each user a larger hard quota limit. The alternative value of \
-\'\fBnotify\fR' informs users with an '\fB*\fR' in the quota output that they \
-are nearing their hard quota limit but does not block new writes until the hard \
-quota limit is reached.  The soft quota state is reset once the user, group, \
-or project reduces their space usage or file count below the soft quota limit. \
-Grace time is specified in "XXwXXdXXhXXmXXs" format or as an integer seconds \
-value.  The maximum is 2^48 - 1 seconds.
+Display default values for users, groups, or projects.
+This command requires super user permissions.
+
 .TP
-.B -t
-Set quota grace times.
+.B -U <\fIuname|uid\fR>
+Display default user quota information for <\fIfilesystem\fR>.
 .TP
-.B -u
-Set grace time for user.
+.B -G <\fIgname|gid\fR>
+Display default group quota information for name <\fIfilesystem\fR>.
 .TP
-.B -g
-Set grace time for group.
-.TP
-.B -p
-Set grace time for project.
-.TP
-.B -b|--block-grace 'notify'|<\fIblock-grace\fR>
-Specify grace time for block quota.
-.TP
-.B -i|--inode-grace 'notify'|<\fIinode-grace\fR>
-Specify grace time for inode quota.
+.B -P <\fIprojid\fR>
+Display default project quota information for <\fIfilesystem\fR>.
+
+
 .PP
-.BR "lfs setquota " {\fB-U|--default-usr|-G|--default-grp|-P|--default-prj\fR}
+.BR "lfs quota " -t <\fIfilesystem\fR>
 .TP
-Command sets the filesystem default limits for user,group,project quotas, \
-if set, users/groups/projects without specific quota setting will use \
-default quota limits automatically.
+Display grace times for users, groups or projects. These are global
+settings and do not show remaining times. The format is "XXwXXdXXhXXmXXs".
+ 
 .TP
-.B -U|--default-usr
-Set default user quota limit.
+.B -u <\fIuname|uid\fR>
+Display default user grace times for <\fIfilesystem\fR>.
 .TP
-.B -G|--default-grp
-Set default group quota limit.
+.B -g <\fIgname|gid\fR>
+Display default group grace times for name <\fIfilesystem\fR>.
 .TP
-.B -P|--default-prj
-Set default project quota limit.
+.B -p <\fIprojid\fR>
+Display default project grace times for <\fIfilesystem\fR>.
 .TP
-.PP
+
 .SH EXAMPLES
 .TP
-.B $ lfs setquota -u bob --block-softlimit 2G --block-hardlimit 1G /mnt/lustre
-Set quotas of user `bob': 1GB block hardlimit and 2 GB block softlimit
+.B $ lfs quota /mnt/lustre
+Display quotas for user current user, group and project
 .TP
-.B $ lfs setquota -u bob -d /mnt/lustre
-Set quotas of user `bob' to use default quota setting
+.B $ lfs quota -u bob /mnt/lustre
+Display quotas for user `bob'
 .TP
-.B $ lfs setquota -U --block-softlimit 1G --block-hardlimit 2G /mnt/lustre
-Set system default user quota: 1 GB block softlimit and 2 GB block hardlimit
+.B $ lfs quota -U /mnt/lustre
+Display default user quotas
 .TP
-.B $ lfs setquota -t -u --block-grace 1000 --inode-grace 1w4d /mnt/lustre
-Set grace times for user quotas: 1000 seconds for block quotas, 1 week and 4 \
-days for inode quotas
+.B $ lfs quota -t -u /mnt/lustre
+Display grace times for user quotas on /mnt/lustre
+.TP
+
+
 .SH SEE ALSO
-.BR lfs (1)
+.BR lfs (1),
+.BR lfs-setquota(1)
