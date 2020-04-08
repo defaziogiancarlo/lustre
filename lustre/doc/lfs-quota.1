@@ -2,10 +2,10 @@
 .SH NAME
 lfs quota \- display quota limits and status for users, groups or projects.
 .SH SYNOPSIS
-.B lfs quota \fR[\fB-hqv\fR] 
+.B lfs quota \fR[\fB-hqv\fR]
        [\fB-o <\fIobd_uuid\fR>|\fB-I <\fIost_idx\fR>|\fB-i <\fImdt_idx\fR>]
        [\fB-u <\fIuname\fR|\fIuid\fR>|\fB-g <\fIgname\fR|\fIgid\fR>\
-|\fB-p <\fIprojid\fR>] 
+|\fB-p <\fIprojid\fR>]
        <\fIfilesystem\fR>\fR
 
 .br
@@ -17,7 +17,6 @@ lfs quota \- display quota limits and status for users, groups or projects.
 .br
 
 .TP
-.TP
 .SH DESCRIPTION
 .PP
 .BR "lfs quota " <\fIfilesystem\fR>
@@ -25,8 +24,7 @@ lfs quota \- display quota limits and status for users, groups or projects.
 Display disk usage and limits, either for the full filesystem, \
 or for objects on a specific obd. A user or group name or an ID can \
 be specified. If user, group and project are omitted, quotas for \
-current uid/gid/projid are shown. 
-
+current uid/gid/projid are shown.
 .TP
 .B -h
 Human readable. This will change the formatting of \
@@ -35,7 +33,7 @@ are in kilobytes and times are in seconds. With this option block storage \
 values use the common metric suffixes
 .BR k "," M "," G "," T "," P "," E
 which specify units of 2^10, 2^20, 2^30, 2^40, 2^50 and 2^60 \
-respectively. 
+respectively.
 Time values use the "XXwXXdXXhXXmXXs" format. This format specifies \
 weeks, days, hours, minutes, seconds.
 .TP
@@ -65,13 +63,11 @@ Display project quota information for \fImdt_idx\fR.
 .TP
 .B -I <\fIost_idx\fR>
 Display project quota information for \fIost_idx\fR.
-
-.PP
-.BR "lfs quota " \fR<\fB-U\fR|\fB-G\fR|\fB-P\fR> <\fIfilesystem\fR>
 .TP
-Display default values for users, groups, or projects.
+.B lfs quota \fR<\fB-U\fR|\fB-G\fR|\fB-P\fR> <\fIfilesystem\fR>
+.TP
+Display default values for users, groups, or projects. \
 This command requires super user permissions.
-
 .TP
 .B -U <\fIuname|uid\fR>
 Display default user quota information for <\fIfilesystem\fR>.
@@ -81,14 +77,11 @@ Display default group quota information for name <\fIfilesystem\fR>.
 .TP
 .B -P <\fIprojid\fR>
 Display default project quota information for <\fIfilesystem\fR>.
-
-
-.PP
-.BR "lfs quota " -t <\fIfilesystem\fR>
 .TP
-Display grace times for users, groups or projects. These are global
+.B lfs quota -t <\fIfilesystem\fR>
+.TP
+Display grace times for users, groups or projects. These are global \
 settings and do not show remaining times. The format is "XXwXXdXXhXXmXXs".
- 
 .TP
 .B -u <\fIuname|uid\fR>
 Display default user grace times for <\fIfilesystem\fR>.
@@ -99,7 +92,6 @@ Display default group grace times for name <\fIfilesystem\fR>.
 .B -p <\fIprojid\fR>
 Display default project grace times for <\fIfilesystem\fR>.
 .TP
-
 .SH EXAMPLES
 .TP
 .B $ lfs quota /mnt/lustre
@@ -114,8 +106,6 @@ Display default user quotas
 .B $ lfs quota -t -u /mnt/lustre
 Display grace times for user quotas on /mnt/lustre
 .TP
-
-
 .SH SEE ALSO
 .BR lfs (1),
 .BR lfs-setquota(1)
