@@ -1,6 +1,6 @@
 .TH LFS-QUOTA 1 2020-04-06 "Lustre" "Lustre Utilities"
 .SH NAME
-lfs quota \- display quota limits and status for users, groups or projects.
+lfs quota \- display quota limits and status for users, groups, or projects.
 .SH SYNOPSIS
 .B lfs quota \fR[\fB-hqv\fR]
        [\fB-o <\fIobd_uuid\fR>|\fB-I <\fIost_idx\fR>|\fB-i <\fImdt_idx\fR>]
@@ -22,7 +22,7 @@ lfs quota \- display quota limits and status for users, groups or projects.
 .BR "lfs quota " <\fIfilesystem\fR>
 .TP
 Display disk usage and limits, either for the full filesystem, \
-or for objects on a specific obd. A user or group name or an ID can \
+or for resources on a specific MDT or OST. A user or group name or an ID can \
 be specified. If user, group and project are omitted, quotas for \
 current uid/gid/projid are shown.
 .TP
@@ -30,7 +30,7 @@ current uid/gid/projid are shown.
 Human readable. This will change the formatting of \
 block storage and time values. Without this option block storage values \
 are in kilobytes and times are in seconds. With this option block storage \
-values use the common metric suffixes
+values use the common metric binary suffixes
 .BR k "," M "," G "," T "," P "," E
 which specify units of 2^10, 2^20, 2^30, 2^40, 2^50 and 2^60 \
 respectively.
@@ -95,10 +95,10 @@ Display default project grace times for <\fIfilesystem\fR>.
 .SH EXAMPLES
 .TP
 .B $ lfs quota /mnt/lustre
-Display quotas for user current user, group and project
+Display quotas for current user, group, and project
 .TP
 .B $ lfs quota -u bob /mnt/lustre
-Display quotas for user `bob'
+Display quotas for user 'bob'
 .TP
 .B $ lfs quota -U /mnt/lustre
 Display default user quotas
