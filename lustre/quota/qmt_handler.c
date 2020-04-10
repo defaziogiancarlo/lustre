@@ -49,8 +49,8 @@
  */
 static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 		   __u8 restype, __u8 qtype, union lquota_id *id,
-		   __u64 *hard, __u64 *soft, __u64 *time, __u32 *flags,
-		   bool is_default)
+		   __u64 *hard, __u64 *soft, __u64 *time, 
+		   enum lustre_dqi_flags *dqi_flags, bool is_default)
 {
 	struct lquota_entry	*lqe;
 	ENTRY;
@@ -76,10 +76,10 @@ static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 							LQUOTA_GRACE_BITS;
 	}
 	/* set edquot supported bit always, and edquot bit if exceeding quota */
-	if (flags != NULL) {
-		*flags |= (__u32)LUSTRE_DQF_EDQUOT_SUPPORTED;
+	if (dqi_flags != NULL) {
+		*dqi_flags |= LUSTRE_DQF_EDQUOT_SUPPORTED;
 		if (lqe->lqe_edquot)
-			*flags |= (__u32)LUSTRE_DQF_EDQUOT;
+			*dqi_flags |= LUSTRE_DQF_EDQUOT;
 	}
 
 	lqe_read_unlock(lqe);

@@ -89,18 +89,10 @@ extern "C" {
 #define PRJQUOTA 2
 #endif
 
-#ifndef LUSTRE_DQF_EDQUOT_SUPPORTED_B
-#define LUSTRE_DQF_EDQUOT_SUPPORTED_B 31
-#endif
-#ifndef LUSTRE_DQF_EDQUOT_SUPPORTED
-#define LUSTRE_DQF_EDQUOT_SUPPORTED (1 << LUSTRE_DQF_EDQUOT_SUPPORTED_B) /* is edquot? */
-#endif
-#ifndef LUSTRE_DQF_EDQUOT_B
-#define LUSTRE_DQF_EDQUOT_B 30
-#endif
-#ifndef LUSTRE_DQF_EDQUOT
-#define LUSTRE_DQF_EDQUOT (1 << LUSTRE_DQF_EDQUOT_B) /* is edquot? */
-#endif
+enum lustre_dqi_flags {
+	LUSTRE_DQF_EDQUOT            = 0x40000000U,
+	LUSTRE_DQF_EDQUOT_SUPPORTED  = 0x80000000U
+};
 
 /*
  * We need to always use 64bit version because the structure

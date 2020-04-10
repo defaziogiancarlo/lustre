@@ -546,7 +546,7 @@ command_t cmdlist[] = {
 	 "usage: quota [-q] [-v] [-h] [-o <obd_uuid>|-i <mdt_idx>|-I "
 		       "<ost_idx>]\n"
 	 "             [<-u|-g|-p> <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>\n"
-	 "       quota [-e] [<-u|-g|-p> <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>\n"
+	 "       quota -e [<-u|-g|-p> <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>\n"
 	 "       quota [-o <obd_uuid>|-i <mdt_idx>|-I <ost_idx>] -t <-u|-g|-p> <filesystem>\n"
 	"	 quota [-q] [-v] [h] <-U|-G|-P> <filesystem>"},
 	{"project", lfs_project, 0,
@@ -6899,7 +6899,7 @@ static void print_quota_title(char *name, struct if_quotactl *qctl,
 
 static void print_edquot_title(char *name, struct if_quotactl *qctl)
 {
-	printf("Exceeding quota check for %s %s (%cid %u):\n",
+	printf("Overquota check for %s %s (%cid %u):\n",
 	       qtype_name(qctl->qc_type), name,
 	       *qtype_name(qctl->qc_type), qctl->qc_id);
 	printf("%s %s\n", "Filesystem", "exceeding");
@@ -6930,7 +6930,8 @@ static void kbytes2str(__u64 num, char *buf, int buflen, bool h)
 /* print if exceeding quota for a mnt and user */
 static void print_edquot(char *mnt, struct if_quotactl *qctl)
 {
-	__u32 edquot_valid = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT_SUPPORTED;
+	__u32 edquot_valid = qctl->qc_dqinfo.dqi_flags & 
+		LUSTRE_DQF_EDQUOT_SUPPORTED;
 	__u32 edquot = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT;
 	char* status;
 	if (!edquot_valid) {
