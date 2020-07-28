@@ -46,11 +46,15 @@
  * \param hard    - is the output variable where to copy the hard limit
  * \param soft    - is the output variable where to copy the soft limit
  * \param time    - is the output variable where to copy the grace time
+ * TODO \param is_default
+ * TODO \param pool_name
+ * \param flags   - is the output variable for checking if a quota
+ *                  has been exceeded.
  */
 static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 		   __u8 restype, __u8 qtype, union lquota_id *id,
 		   __u64 *hard, __u64 *soft, __u64 *time, bool is_default,
-		   char *pool_name)
+		   char *pool_name, enum lustre_dqi *dqi_flags)
 {
 	struct lquota_entry	*lqe;
 	ENTRY;
@@ -77,6 +81,15 @@ static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 			*time |= (__u64)LQUOTA_FLAG_DEFAULT <<
 							LQUOTA_GRACE_BITS;
 	}
+	/* always set edquot supported bit,
+	 * and set edquot bit if exceeding some quota
+	 */
+	if (dqi_flags != NULL) {
+		*dqi_flags |= LUSTRE_DQF_EDQUOT_SUPPORTED;
+		if (lqe->lqe_edquot)
+			*dqi_flags |= (__u32)LUSTRE_DQF_EDQUOT;
+	}
+
 	lqe_read_unlock(lqe);
 
 	lqe_putref(lqe);
@@ -364,7 +377,7 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 		/* read inode grace time */
 		rc = qmt_get(env, qmt, LQUOTA_RES_MD, oqctl->qc_type, id, NULL,
 			     NULL, &oqctl->qc_dqinfo.dqi_igrace,
-			     false, poolname);
+			     false, poolname, NULL);
 		/* There could be no MD pool, so try to find DT pool */
 		if (rc && rc != -ENOENT)
 			break;
@@ -372,7 +385,7 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 		/* read block grace time */
 		rc = qmt_get(env, qmt, LQUOTA_RES_DT, oqctl->qc_type, id, NULL,
 			     NULL, &oqctl->qc_dqinfo.dqi_bgrace,
-			     false, poolname);
+			     false, poolname, NULL);
 		break;
 
 	case Q_SETINFO:  /* modify grace times */
@@ -414,7 +427,8 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 		/* look-up inode quota settings */
 		rc = qmt_get(env, qmt, LQUOTA_RES_MD, oqctl->qc_type, id,
 			     &dqb->dqb_ihardlimit, &dqb->dqb_isoftlimit,
-			     &dqb->dqb_itime, is_default, poolname);
+			     &dqb->dqb_itime, is_default, poolname,
+			     &oqctl->qc_dqinfo.dqi_flags);
 		/* There could be no MD pool, so try to find DT pool */
 		if (rc && rc != -ENOENT)
 			break;
@@ -427,7 +441,8 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 		/* look-up block quota settings */
 		rc = qmt_get(env, qmt, LQUOTA_RES_DT, oqctl->qc_type, id,
 			     &dqb->dqb_bhardlimit, &dqb->dqb_bsoftlimit,
-			     &dqb->dqb_btime, is_default, poolname);
+			     &dqb->dqb_btime, is_default, poolname
+			     &oqctl->qc_dqinfo.dqi_flags);
 		if (rc)
 			break;
 
