@@ -54,7 +54,7 @@
 static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 		   __u8 restype, __u8 qtype, union lquota_id *id,
 		   __u64 *hard, __u64 *soft, __u64 *time, bool is_default,
-		   char *pool_name, enum lustre_dqi *dqi_flags)
+		   char *pool_name, enum lustre_dqi_flags *dqi_flags)
 {
 	struct lquota_entry	*lqe;
 	ENTRY;
@@ -441,7 +441,7 @@ static int qmt_quotactl(const struct lu_env *env, struct lu_device *ld,
 		/* look-up block quota settings */
 		rc = qmt_get(env, qmt, LQUOTA_RES_DT, oqctl->qc_type, id,
 			     &dqb->dqb_bhardlimit, &dqb->dqb_bsoftlimit,
-			     &dqb->dqb_btime, is_default, poolname
+			     &dqb->dqb_btime, is_default, poolname,
 			     &oqctl->qc_dqinfo.dqi_flags);
 		if (rc)
 			break;
