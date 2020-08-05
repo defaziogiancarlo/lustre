@@ -7202,6 +7202,23 @@ static void kbytes2str(__u64 num, char *buf, int buflen, bool h)
 	}
 }
 
+
+static void print_exceeding_quota_status(char *name, char *mnt,
+					 struct if_quotactl *qctl)
+{
+	__u32 edquot_valid = qctl->qc_dqinfo.dqi_flags &
+		LUSTRE_DQF_EDQUOT_SUPPORTED;
+	__u32 edquot = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT;
+	if (edquot_valid)
+		printf("%s %s quota on %s\n", name,
+		       edquot ? "over" : "under", mnt);
+	else
+		printf("lfs quota -e is not supported on %s."
+		       " run without \"-e\"\n", mnt);
+}
+
+
+
 #define STRBUF_LEN	32
 static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
 			int rc, bool h, bool show_default)
@@ -7370,7 +7387,7 @@ out:
 
 static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 			   int verbose, int quiet, bool human_readable,
-			   bool show_default)
+			   bool show_default, bool show_edquot)
 {
 	int rc1 = 0, rc2 = 0, rc3 = 0;
 	char *obd_type = (char *)qctl->obd_type;
@@ -7423,7 +7440,7 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 
 	if ((qctl->qc_cmd == LUSTRE_Q_GETQUOTA ||
 	     qctl->qc_cmd == LUSTRE_Q_GETQUOTAPOOL ||
-	     qctl->qc_cmd == LUSTRE_Q_GETDEFAULT) && !quiet)
+	     qctl->qc_cmd == LUSTRE_Q_GETDEFAULT) && !quiet && !show_edquot)
 		print_quota_title(name, qctl, human_readable, show_default);
 
 	if (rc1 && *obd_type)
@@ -7437,9 +7454,15 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 		((qctl->qc_dqblk.dqb_valid & (QIF_LIMITS|QIF_USAGE)) !=
 		 (QIF_LIMITS|QIF_USAGE));
 
+	if (show_edquot)
+		print_exceeding_quota_status(name, mnt, qctl);
+	else
+		print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable,
+			    show_default);
+
 	print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable, show_default);
 
-	if (!show_default && verbose &&
+	if (!show_default && verbose && !show_edquot &&
 	    qctl->qc_valid == QC_GENERAL && qctl->qc_cmd != LUSTRE_Q_GETINFO &&
 	    qctl->qc_cmd != LUSTRE_Q_GETINFOPOOL) {
 		char strbuf[STRBUF_LEN];
@@ -7648,6 +7671,7 @@ static int lfs_quota(int argc, char **argv)
 	bool human_readable = false;
 	bool show_default = false;
 	int qtype;
+	bool show_edquot = false;
 	struct option long_opts[] = {
 	{ .val = 1,	.name = "pool",	.has_arg = required_argument },
 	{ .name = NULL } };
@@ -7660,9 +7684,13 @@ static int lfs_quota(int argc, char **argv)
 	qctl->qc_type = ALLQUOTA;
 	obd_uuid = (char *)qctl->obd_uuid.uuid;
 
-	while ((c = getopt_long(argc, argv, "gGi:I:o:pPqtuUvh",
+	while ((c = getopt_long(argc, argv, "egGi:I:o:pPqtuUvh",
 		long_opts, NULL)) != -1) {
 		switch (c) {
+		case 'e':
+			qctl->qc_dqblk.dqb_valid = -1;
+			show_edquot = true;
+			break;
 		case 'U':
 			show_default = true;
 		case 'u':
@@ -7766,7 +7794,8 @@ quota_type:
 				name = "<unknown>";
 			mnt = argv[optind];
 			rc1 = get_print_quota(mnt, name, qctl, verbose, quiet,
-					      human_readable, show_default);
+					      human_readable, show_default,
+					      show_edquot);
 			if (rc1 && !rc)
 				rc = rc1;
 		}
@@ -7824,7 +7853,7 @@ quota_type:
 
 	mnt = argv[optind];
 	rc = get_print_quota(mnt, name, qctl, verbose, quiet,
-			     human_readable, show_default);
+			     human_readable, show_default, show_edquot);
 out:
 	free(qctl);
 	return rc;
