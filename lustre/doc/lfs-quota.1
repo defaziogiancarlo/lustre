@@ -6,6 +6,7 @@ lfs quota \- display quota limits and status for users, groups, or projects.
        [\fB-o <\fIobd_uuid\fR>|\fB-I <\fIost_idx\fR>|\fB-i <\fImdt_idx\fR>]
        [\fB-u <\fIuname\fR|\fIuid\fR>|\fB-g <\fIgname\fR|\fIgid\fR>\
 |\fB-p <\fIprojid\fR>]
+       [\fB-pool <\fIpoolname\fR>]
        <\fIfilesystem\fR>\fR
 
 .br
@@ -94,6 +95,9 @@ Display default group grace times for name <\fIfilesystem\fR>.
 .TP
 .B -p <\fIprojid\fR>
 Display default project grace times for <\fIfilesystem\fR>.
+.TP
+.B -pool <\fIpoolname\fR>
+Display quota information for a particular OST pool <\fIpoolname\fR>.
 .TP
 .SH EXAMPLES
 .TP
