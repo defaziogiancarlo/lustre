@@ -197,10 +197,14 @@ getquota() {
 
 	[ ! -z "$5" ] && pool_arg="--pool $5 "
 	[ "$uuid" = "global" ] && uuid=$DIR
-
+	#echo $spec $uuid
+	#echo quota -v "$1" "$2" $pool_arg $DIR
+	# modified for case where multiple lines have "uuid" in them
+	# this appears to be due to some config issue that the whamcloud
+	# test environemtn doesn't suffer from
 	$LFS quota -v "$1" "$2" $pool_arg $DIR |
-		awk 'BEGIN { num='$spec' } { if ($1 == "'$uuid'") \
-		{ if (NF == 1) { getline } else { num++ } ; print $num;} }' \
+		awk 'BEGIN { num='$spec'; saw_uuid=0 } { if ($1 == "'$uuid'" && saw_uuid == 0) \
+		{ if (NF == 1) { getline } else { num++ } ; print $num; saw_uuid=1 } }' \
 		| tr -d "*"
 }
 
