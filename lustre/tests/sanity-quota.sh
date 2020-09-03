@@ -208,6 +208,54 @@ getquota() {
 		| tr -d "*"
 }
 
+# check if edquot supported
+# if not, it should say so, and not over/under
+# returns 0 is equot supported, 1 otherwise
+# usage: is_edquot_supported <username>|<uid>
+is_edquot_supported() {
+	local id=$1
+	local quota_status
+
+	[ "$#" != 1 ] && error "is_edquot_supported: \
+		wrong number of arguments: $#"
+
+	quota_status=$($LFS quota -q -e -u "$id" $DIR | \
+		awk '{ if (NR == 1) print $2 }')
+
+	[ $quota_status = "quota" ] && return 1
+	[ $quota_status = "over" -o $quota_status = "under" ] && return 0
+	quota_error "is_edquot_supported: \
+		invalid edquot status: $quota_status"
+}
+
+# check if a user, group, or project has exceeded some quota
+# returns 0 if over quota, 1 if not over quota,
+# error if server doesn't support this feature or status makes no sense
+# usage: is_over_quota -u|-g|-p <username>|<groupname>|<projid>
+is_over_quota() {
+	local flag=$1
+	local id=$2
+	local edquot
+
+	sync_all_data > /dev/null 2>&1 || true
+
+	[ "$#" != 2 ] && error "is_over_quota: \
+		wrong number of arguments: $#"
+
+	[ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+	error "is_over_quota: wrong u/g/p specifier $flag passed"
+
+	edquot=$($LFS quota -q -e "$flag" "$id" $DIR | \
+		awk '{ if (NR == 1) print $2 }')
+
+	[ $edquot = "over" ] && return 0
+	[ $edquot = "under" ] && return 1
+	[ $edquot = "quota" ] &&
+	quota_error "is_over_quota: edquot unsupported"
+	quota_error "is_over_quota: invalid edquot status: $edquot"
+}
+
+
 # set mdt quota type
 # usage: set_mdt_qtype ugp|u|g|p|none
 set_mdt_qtype() {
