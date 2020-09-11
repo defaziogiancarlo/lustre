@@ -7522,10 +7522,7 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 	if (show_edquot)
 		print_exceeding_quota_status(name, mnt, qctl);
 	else
-		print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable,
-			    show_default);
-
-	print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable, show_default);
+		print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable, show_default);
 
 	if (!show_default && verbose && !show_edquot &&
 	    qctl->qc_valid == QC_GENERAL && qctl->qc_cmd != LUSTRE_Q_GETINFO &&

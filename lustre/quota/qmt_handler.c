@@ -87,7 +87,7 @@ static int qmt_get(const struct lu_env *env, struct qmt_device *qmt,
 	if (dqi_flags != NULL) {
 		*dqi_flags |= LUSTRE_DQF_EDQUOT_SUPPORTED;
 		if (lqe->lqe_edquot)
-			*dqi_flags |= (__u32)LUSTRE_DQF_EDQUOT;
+			*dqi_flags |= LUSTRE_DQF_EDQUOT;
 	}
 
 	lqe_read_unlock(lqe);
