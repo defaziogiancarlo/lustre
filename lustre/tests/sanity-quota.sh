@@ -730,18 +730,25 @@ test_1b() {
 	echo "used $used"
 	[ $used -ne 0 ] && error "Used space($used) for user $TSTUSR isn't 0."
 
-	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
-
 	# edquot should be false here
 	if [ edquot_supported ]; then
-		is_over_quota && quota_error "user over quota, should be under"
+		is_over_quota -u $TSTUSR && 
+			quota_error "user over quota, should be under"
 	fi
 
+	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
 
 	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
 	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
 
 	test_1_check_write $testfile "user" $limit
+
+	# edquot should be false here, at quota, not exceeding
+	if [ edquot_supported ]; then
+		is_over_quota -u $TSTUSR && 
+			quota_error "user over quota, should be under"
+	fi
+
 
 	rm -f $testfile
 	wait_delete_completed || error "wait_delete_completed failed"
@@ -749,6 +756,13 @@ test_1b() {
 	used=$(getquota -u $TSTUSR global curspace $qpool)
 	[ $used -ne 0 ] && quota_error u $TSTUSR \
 		"user quota isn't released after deletion"
+
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -u $TSTUSR && 
+			quota_error "user over quota, should be under"
+	fi
+
 	resetquota -u $TSTUSR
 
 	# test for group
@@ -765,10 +779,22 @@ test_1b() {
 	used=$(getquota -g $TSTUSR global curspace $qpool)
 	[ $used -ne 0 ] && error "Used space ($used) for group $TSTUSR isn't 0"
 
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -g $TSTUSR && 
+			quota_error "user over quota, should be under"
+	fi
+
 	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
 	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
 
 	test_1_check_write $testfile "group" $limit
+
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -g $TSTUSR && 
+			quota_error "user over quota, should be under"
+	fi
 
 	rm -f $testfile
 	wait_delete_completed || error "wait_delete_completed failed"
@@ -776,6 +802,12 @@ test_1b() {
 	used=$(getquota -g $TSTUSR global curspace $qpool)
 	[ $used -ne 0 ] && quota_error g $TSTUSR \
 				"Group quota isn't released after deletion"
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -g $TSTUSR && 
+			quota_error "user over quota, should be under"
+	fi
+
 	resetquota -g $TSTUSR
 
 	if ! is_project_quota_supported; then
@@ -799,12 +831,23 @@ test_1b() {
 	$LFS setquota -p $TSTPRJID -b 0 -B ${limit}M --pool $qpool $DIR ||
 		error "set project quota failed"
 
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -g $TSTPRJID && 
+			quota_error "project over quota, should be under"
+	fi
 
 	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
 	chown $TSTUSR:$TSTUSR $testfile || error "chown $testfile failed"
 	change_project -p $TSTPRJID $testfile
 
 	test_1_check_write $testfile "project" $limit
+
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -g $TSTPRJID && 
+			quota_error "project over quota, should be under"
+	fi
 
 	# cleanup
 	cleanup_quota_test
