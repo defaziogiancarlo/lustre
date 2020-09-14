@@ -209,13 +209,14 @@ getquota() {
 # returns 0 is equot supported, 1 otherwise
 # usage: is_edquot_supported <username>|<uid>
 is_edquot_supported() {
-	local id=$1
+	local flag=$1
+	local id=$2
 	local quota_status
 
-	[ "$#" != 1 ] && error "is_edquot_supported: \
+	[ "$#" != 2 ] && error "is_edquot_supported: \
 		wrong number of arguments: $#"
 
-	quota_status=$($LFS quota -q -e -u "$id" $DIR | \
+	quota_status=$($LFS quota -q -e $flag "$id" $DIR | \
 		awk '{ if (NR == 1) print $2 }')
 
 	[ $quota_status = "quota" ] && return 1
@@ -588,12 +589,13 @@ test_1_check_write() {
 	local short_qtype=${qtype:0:1}
 
 	# check if possible to query edquot
-	local edquot_supported=$(is_edquot_supported $TSTUSR)
+	local edquot_supported=$(is_edquot_supported -${short_qtype} $TSTUSR)
 
 	### edquot should be false here
 	# edquot should be false here
 	if [ edquot_supported ]; then
-		is_over_quota $short_qtype $TSTUSR && 
+		echo $short_qtype
+		is_over_quota -${short_qtype} $TSTUSR && 
 			quota_error "user over quota, should be under"
 	fi
 
@@ -603,10 +605,9 @@ test_1_check_write() {
 			"$qtype write failure, but expect success"
 	log "Write out of block quota ..."
 
-	### edquot should be false here
-	edquot should be false here
+	# edquot should be false here
 	if [ edquot_supported ]; then
-		is_over_quota $short_qtype $TSTUSR &&
+		is_over_quota -${short_qtype} $TSTUSR &&
 			quota_error "user over quota, should be under"
 	fi
 
@@ -623,7 +624,7 @@ test_1_check_write() {
 
 	# edquot should be false here
 	if [ edquot_supported ]; then
-		is_over_quota $short_qtype $TSTUSR &&
+		is_over_quota -${short_qtype} $TSTUSR &&
 			quota_error "user over quota, should be under"
 	fi
 
@@ -632,12 +633,13 @@ test_1_check_write() {
 	local over_quota_write=$?
 
 	# writing past the quota should have set edquot to true
-	if [ edquot_supported ]; then
-		# sync time
-		#sleep 5
-		is_over_quota $short_qtype $TSTUSR ||
-			quota_error "user under quota, should be over"
-	fi
+	# if [ edquot_supported ]; then
+	# 	# sync time
+	# 	sleep 5
+	# 	$LFS quota -q -e -${short_qtype} $TSTUSR $DIR
+	# 	is_over_quota -${short_qtype} $TSTUSR ||
+	# 		quota_error "user under quota, should be over"
+	# fi
 
 	# if the equot check passes, can still fail
 	# if the write was allowed based on the status
