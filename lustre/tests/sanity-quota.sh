@@ -247,7 +247,7 @@ is_over_quota() {
 	[ $edquot = "over" ] && return 0
 	[ $edquot = "under" ] && return 1
 	[ $edquot = "quota" ] &&
-	quota_error "is_over_quota: edquot unsupported"
+		quota_error "is_over_quota: edquot unsupported"
 	quota_error "is_over_quota: invalid edquot status: $edquot"
 }
 
@@ -722,12 +722,21 @@ test_1b() {
 	$LFS setquota -u $TSTUSR -B ${limit}M --pool $qpool $DIR ||
 		error "set user quota failed"
 
+	# check if possible to query edquot
+	local edquot_supported=$(is_edquot_supported $TSTUSR)
+
 	# make sure the system is clean
 	local used=$(getquota -u $TSTUSR global curspace)
 	echo "used $used"
 	[ $used -ne 0 ] && error "Used space($used) for user $TSTUSR isn't 0."
 
 	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
+
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota && quota_error "user over quota, should be under"
+	fi
+
 
 	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
 	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
