@@ -587,11 +587,30 @@ test_1_check_write() {
 	local limit=$3
 	local short_qtype=${qtype:0:1}
 
+	# check if possible to query edquot
+	local edquot_supported=$(is_edquot_supported $TSTUSR)
+
+	### edquot should be false here
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota $short_qtype $TSTUSR && 
+			quota_error "user over quota, should be under"
+	fi
+
 	log "Write..."
 	$RUNAS $DD of=$testfile count=$((limit/2)) ||
 		quota_error $short_qtype $TSTUSR \
 			"$qtype write failure, but expect success"
 	log "Write out of block quota ..."
+
+	### edquot should be false here
+	edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota $short_qtype $TSTUSR &&
+			quota_error "user over quota, should be under"
+	fi
+
+
 	# this time maybe cache write,  ignore it's failure
 	$RUNAS $DD of=$testfile count=$((limit/2)) seek=$((limit/2)) || true
 	# flush cache, ensure noquota flag is set on client
@@ -601,9 +620,32 @@ test_1_check_write() {
 	# garantee that slave got new edquot trough glimpse.
 	# so wait a little to be sure slave got it.
 	sleep 5
-	$RUNAS $DD of=$testfile count=1 seek=$limit &&
+
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota $short_qtype $TSTUSR &&
+			quota_error "user over quota, should be under"
+	fi
+
+	# attempt to write past quota limit and capture return status
+	$RUNAS $DD of=$testfile count=1 seek=$limit
+	local over_quota_write=$?
+
+	# writing past the quota should have set edquot to true
+	if [ edquot_supported ]; then
+		# sync time
+		#sleep 5
+		is_over_quota $short_qtype $TSTUSR ||
+			quota_error "user under quota, should be over"
+	fi
+
+	# if the equot check passes, can still fail
+	# if the write was allowed based on the status
+	if [ over_quota_write -eq 0 ]; then
 		quota_error $short_qtype $TSTUSR \
 			"user write success, but expect EDQUOT"
+	fi
+
 }
 
 # test block hardlimit
@@ -723,7 +765,7 @@ test_1b() {
 		error "set user quota failed"
 
 	# check if possible to query edquot
-	local edquot_supported=$(is_edquot_supported $TSTUSR)
+	###local edquot_supported=$(is_edquot_supported $TSTUSR)
 
 	# make sure the system is clean
 	local used=$(getquota -u $TSTUSR global curspace)
@@ -743,11 +785,11 @@ test_1b() {
 
 	test_1_check_write $testfile "user" $limit
 
-	# edquot should be false here, at quota, not exceeding
-	if [ edquot_supported ]; then
-		is_over_quota -u $TSTUSR && 
-			quota_error "user over quota, should be under"
-	fi
+	# # edquot should be true here
+	# if [ edquot_supported ]; then
+	# 	is_over_quota -u $TSTUSR || 
+	# 		quota_error "user under quota, should be over"
+	# fi
 
 
 	rm -f $testfile
@@ -757,11 +799,11 @@ test_1b() {
 	[ $used -ne 0 ] && quota_error u $TSTUSR \
 		"user quota isn't released after deletion"
 
-	# edquot should be false here
-	if [ edquot_supported ]; then
-		is_over_quota -u $TSTUSR && 
-			quota_error "user over quota, should be under"
-	fi
+	# # edquot should be false here
+	# if [ edquot_supported ]; then
+	# 	is_over_quota -u $TSTUSR && 
+	# 		quota_error "user over quota, should be under"
+	# fi
 
 	resetquota -u $TSTUSR
 
@@ -779,22 +821,22 @@ test_1b() {
 	used=$(getquota -g $TSTUSR global curspace $qpool)
 	[ $used -ne 0 ] && error "Used space ($used) for group $TSTUSR isn't 0"
 
-	# edquot should be false here
-	if [ edquot_supported ]; then
-		is_over_quota -g $TSTUSR && 
-			quota_error "user over quota, should be under"
-	fi
+	# # edquot should be false here
+	# if [ edquot_supported ]; then
+	# 	is_over_quota -g $TSTUSR && 
+	# 		quota_error "user over quota, should be under"
+	# fi
 
 	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
 	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
 
 	test_1_check_write $testfile "group" $limit
 
-	# edquot should be false here
-	if [ edquot_supported ]; then
-		is_over_quota -g $TSTUSR && 
-			quota_error "user over quota, should be under"
-	fi
+	# # edquot should be true here
+	# if [ edquot_supported ]; then
+	# 	is_over_quota -g $TSTUSR && 
+	# 		quota_error "user over quota, should be under"
+	# fi
 
 	rm -f $testfile
 	wait_delete_completed || error "wait_delete_completed failed"
@@ -802,11 +844,11 @@ test_1b() {
 	used=$(getquota -g $TSTUSR global curspace $qpool)
 	[ $used -ne 0 ] && quota_error g $TSTUSR \
 				"Group quota isn't released after deletion"
-	# edquot should be false here
-	if [ edquot_supported ]; then
-		is_over_quota -g $TSTUSR && 
-			quota_error "user over quota, should be under"
-	fi
+	# # edquot should be false here
+	# if [ edquot_supported ]; then
+	# 	is_over_quota -g $TSTUSR && 
+	# 		quota_error "user over quota, should be under"
+	# fi
 
 	resetquota -g $TSTUSR
 
@@ -892,14 +934,29 @@ test_1c() {
 	$LFS setquota -u $TSTUSR -B 0M --pool $qpool2 $DIR ||
 		error "set user quota failed"
 
+	# check if possible to query edquot
+	local edquot_supported=$(is_edquot_supported $TSTUSR)
+
 	# make sure the system is clean
 	local used=$(getquota -u $TSTUSR global curspace)
 	echo "used $used"
 	[ $used -ne 0 ] && error "Used space($used) for user $TSTUSR isn't 0."
 
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -u $TSTPRJID && 
+			quota_error "project over quota, should be under"
+	fi
+
 	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
 
 	test_1_check_write $testfile "user" $global_limit
+
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -u $TSTPRJID && 
+			quota_error "project over quota, should be under"
+	fi
 
 	used=$(getquota -u $TSTUSR global curspace $qpool1)
 	echo "qpool1 used $used"
@@ -909,6 +966,13 @@ test_1c() {
 	rm -f $testfile
 	wait_delete_completed || error "wait_delete_completed failed"
 	sync_all_data || true
+
+	# edquot should be false here
+	if [ edquot_supported ]; then
+		is_over_quota -u $TSTPRJID && 
+			quota_error "project over quota, should be under"
+	fi
+
 
 	used=$(getquota -u $TSTUSR global curspace $qpool1)
 	[ $used -ne 0 ] && quota_error u $TSTUSR \
@@ -953,6 +1017,9 @@ test_1d() {
 
 	$LFS setquota -u $TSTUSR -B ${limit2}M --pool $qpool2 $DIR ||
 	error "set user quota failed"
+
+	# check if possible to query edquot
+	local edquot_supported=$(is_edquot_supported $TSTUSR)
 
 	# make sure the system is clean
 	local used=$(getquota -u $TSTUSR global curspace)
