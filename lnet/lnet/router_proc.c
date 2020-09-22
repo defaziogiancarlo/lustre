@@ -83,9 +83,10 @@ static int __proc_lnet_stats(void *data, int write,
 	int		 rc;
 	struct lnet_counters *ctrs;
 	struct lnet_counters_common common;
+	struct lnet_counters_health health;
 	int		 len;
 	char		*tmpstr;
-	const int	 tmpsiz = 256; /* 7 %u and 4 __u64 */
+	const int	 tmpsiz = 512; /* 20 __32 and 4 __u64 */
 
 	if (write) {
 		lnet_counters_reset();
@@ -106,16 +107,29 @@ static int __proc_lnet_stats(void *data, int write,
 
 	lnet_counters_get(ctrs);
 	common = ctrs->lct_common;
+	health = ctrs->lct_health;
 
 	len = snprintf(tmpstr, tmpsiz,
-		       "%u %u %u %u %u %u %u %llu %llu "
-		       "%llu %llu",
+		       "%u %u %u %u %u %u %u %llu %llu %llu %llu\n"
+		       "%u %u %u %u %u %u %u %u %u %u %u %u %u",
 		       common.lcc_msgs_alloc, common.lcc_msgs_max,
 		       common.lcc_errors,
 		       common.lcc_send_count, common.lcc_recv_count,
 		       common.lcc_route_count, common.lcc_drop_count,
 		       common.lcc_send_length, common.lcc_recv_length,
-		       common.lcc_route_length, common.lcc_drop_length);
+		       common.lcc_route_length, common.lcc_drop_length,
+		       health.lch_rst_alloc, health.lch_resend_count,
+		       health.lch_response_timeout_count,
+		       health.lch_local_interrupt_count,
+		       health.lch_local_dropped_count,
+		       health.lch_local_aborted_count,
+		       health.lch_local_no_route_count,
+		       health.lch_local_timeout_count,
+		       health.lch_local_error_count,
+		       health.lch_remote_dropped_count,
+		       health.lch_remote_error_count,
+		       health.lch_remote_timeout_count,
+		       health.lch_network_timeout_count);
 
 	if (pos >= min_t(int, len, strlen(tmpstr)))
 		rc = 0;
