@@ -219,8 +219,9 @@ is_edquot_supported() {
 	quota_status=$($LFS quota -q -e $flag "$id" $DIR | \
 		awk '{ if (NR == 1) print $2 }')
 
-	[ $quota_status = "quota" ] && return 1
-	[ $quota_status = "over" -o $quota_status = "under" ] && return 0
+	echo "xxx${quota_status}xxx"
+	[ x"$quota_status" = x"quota" ] && return 1
+	[ x"$quota_status" = x"over" -o x"$quota_status" = x"under" ] && return 0
 	quota_error "is_edquot_supported: \
 		invalid edquot status: $quota_status"
 }
@@ -591,7 +592,6 @@ test_1_check_write() {
 	# check if possible to query edquot
 	local edquot_supported=$(is_edquot_supported -${short_qtype} $TSTUSR)
 
-	### edquot should be false here
 	# edquot should be false here
 	if [ edquot_supported ]; then
 		echo $short_qtype
@@ -631,7 +631,7 @@ test_1_check_write() {
 	# attempt to write past quota limit and capture return status
 	$RUNAS $DD of=$testfile count=1 seek=$limit
 	local over_quota_write=$?
-
+	
 	# writing past the quota should have set edquot to true
 	# if [ edquot_supported ]; then
 	# 	# sync time
@@ -643,7 +643,7 @@ test_1_check_write() {
 
 	# if the equot check passes, can still fail
 	# if the write was allowed based on the status
-	if [ over_quota_write -eq 0 ]; then
+	if [ ${over_quota_write} -eq 0 ]; then
 		quota_error $short_qtype $TSTUSR \
 			"user write success, but expect EDQUOT"
 	fi
