@@ -17,6 +17,11 @@ lfs quota \- display quota limits and status for users, groups, or projects.
 .B lfs quota -t \fR<\fB-u\fR|\fB-g\fR|\fB-p\fR> <\fIfilesystem\fR>
 .br
 
+.B lfs quota -e \
+       \fR[\fB-u \fR<\fIuname\fR|\fIuid\fR>|\fB-g \fR<\fIgname\fR|\fIgid\fR>\
+|\fB-p \fR<\fIprojid\fR>] \
+<\fIfilesystem\fR>\fR
+
 .TP
 .SH DESCRIPTION
 .PP
@@ -29,6 +34,15 @@ individual MDTs and OSTs can be specified. \
 A user or group name or an ID can \
 be specified. If user, group and project are omitted, quotas for \
 current uid/gid/projid are shown.
+.TP
+.B -e
+Exceeding quota. Display whether or not a user, group, or project is \
+exceeding some quota. The purpose of this command is to check if \
+some entity can write to a lustre filesystem. The performance of this \
+command may be better than other versions of lfs quota. \
+The output does not specify whether the quota reached is block \
+or inode. It will display a message saying not supported if the server \
+does not have this feature.
 .TP
 .B -h
 Human readable. This will change the formatting of \
