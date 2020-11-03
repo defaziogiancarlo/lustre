@@ -204,6 +204,24 @@ getquota() {
 		| tr -d "*"
 }
 
+# Check if the edquot checking feature is supported
+# If edquot is supported, lfs will say over or under 
+# and this function will return 0.
+# If edquot checking is not supported,
+# lfs will say say and this function will return 1
+# any other response from lfs is an error
+# usage: is_edquot_supported -u <username>|<uid>
+# is_edquot_supported() {
+	
+
+
+# }
+
+# is_over_quota() {
+
+# }
+
+
 # set mdt quota type
 # usage: set_mdt_qtype ugp|u|g|p|none
 set_mdt_qtype() {
