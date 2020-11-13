@@ -557,16 +557,48 @@ test_1_check_write() {
 	local limit=$3
 	local short_qtype=${qtype:0:1}
 
+	
+	# Added for edquot
+	printf "\nSTART edquot debug in test_1_check_write 0\n"
+	printf "limit:  $limit\n"
+	printf "limit / 2:  $((limit/2))\n"
+	printf "qtype: $qtype\n"
+	printf "short_qtype: ${short_qtype}\n"
+	printf "\nEND edquot debug in test_1_check_write 0\n"
+	local entity
+	if [ $short_qtype = "p" ]
+	then
+	    entity=$TSTPRJID
+	else
+	    entity=$TSTUSR
+	fi
+
 	log "Write..."
 	$RUNAS $DD of=$testfile count=$((limit/2)) ||
 		quota_error $short_qtype $TSTUSR \
 			"$qtype write failure, but expect success"
 	log "Write out of block quota ..."
+
+	# Added for edquot
+	printf "\nSTART edquot debug in test_1_check_write 1\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool
+	$LFS quota -e -${short_qtype} $entity $DIR
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	printf "\nEND edquot debug in test_1_check_write 1\n\n"
+
 	# this time maybe cache write,  ignore it's failure
 	$RUNAS $DD of=$testfile count=$((limit/2)) seek=$((limit/2)) || true
 	# flush cache, ensure noquota flag is set on client
 	cancel_lru_locks osc
 	sync; sync_all_data || true
+
+	printf "\nSTART edquot debug in test_1_check_write 2\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool
+	$LFS quota -e -${short_qtype} $entity $DIR
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	printf "\nEND edquot debug in test_1_check_write 2\n\n"
+
+
 	# sync means client wrote all it's cache, but id doesn't
 	# garantee that slave got new edquot trough glimpse.
 	# so wait a little to be sure slave got it.
@@ -574,6 +606,14 @@ test_1_check_write() {
 	$RUNAS $DD of=$testfile count=1 seek=$limit &&
 		quota_error $short_qtype $TSTUSR \
 			"user write success, but expect EDQUOT"
+
+	printf "\nSTART edquot debug in test_1_check_write 3\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool
+	$LFS quota -e -${short_qtype} $entity $DIR
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	printf "\nEND edquot debug in test_1_check_write 3\n\n"
+
+
 }
 
 check_write_fallocate() {
@@ -797,6 +837,68 @@ test_1b() {
 		"project quota isn't released after deletion"
 }
 run_test 1b "Quota pools: Block hard limit (normal use and out of quota)"
+
+# check superset case
+test_1b2() {
+	local limit=10  # 10M
+	local global_limit=20  # 100M
+	local testfile="$DIR/$tdir/$tfile-0"
+	local qpool="qpool1"
+
+	mds_supports_qp
+	setup_quota_test || error "setup quota failed with $?"
+	stack_trap cleanup_quota_test EXIT
+
+	# enable ost quota
+	set_ost_qtype $QTYPE || error "enable ost quota failed"
+
+	# test for user
+	log "User quota (block hardlimit:$global_limit MB)"
+	$LFS setquota -u $TSTUSR -b 0 -B ${global_limit}M -i 0 -I 0 $DIR ||
+		error "set user quota failed"
+
+	pool_add $qpool || error "pool_add failed"
+	pool_add_targets $qpool 0 $(($OSTCOUNT - 1)) ||
+		error "pool_add_targets failed"
+
+	$LFS setquota -u $TSTUSR -B ${limit}M --pool $qpool $DIR ||
+		error "set user quota failed"
+
+	# make sure the system is clean
+	local used=$(getquota -u $TSTUSR global curspace)
+	echo "used $used"
+	[ $used -ne 0 ] && error "Used space($used) for user $TSTUSR isn't 0."
+
+	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
+
+	# Added for edquot
+	printf "\nSTART edquot debug 1\n"
+	$LFS quota -u $TSTUSR $DIR
+	printf "\nEND edquot debug 1\n"
+
+	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
+	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
+
+	test_1_check_write $testfile "user" $limit
+
+	rm -f $testfile
+	wait_delete_completed || error "wait_delete_completed failed"
+	sync_all_data || true
+	used=$(getquota -u $TSTUSR global curspace $qpool)
+	[ $used -ne 0 ] && quota_error u $TSTUSR \
+		"user quota isn't released after deletion"
+
+
+	# Added for edquot
+	printf "\nSTART edquot debug 2\n"
+	$LFS quota -e -u $TSTUSR $DIR
+	printf "\nEND edquot debug 2\n"
+
+	resetquota -u $TSTUSR
+
+
+}
+run_test 1b2 "Test for getting quota edquot check to work"
 
 test_1c() {
 	local global_limit=20  # 100M
