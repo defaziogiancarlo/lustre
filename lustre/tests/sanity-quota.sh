@@ -581,9 +581,15 @@ test_1_check_write() {
 
 	# Added for edquot
 	printf "\nSTART edquot debug in test_1_check_write 1\n"
-	$LFS quota -${short_qtype} $entity $DIR --pool $qpool
+	printf "global pool\n"
+	$LFS quota -${short_qtype} $entity $DIR
 	$LFS quota -e -${short_qtype} $entity $DIR
-	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	printf "pool01\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool01
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool01
+	printf "pool0\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool0
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool0
 	printf "\nEND edquot debug in test_1_check_write 1\n\n"
 
 	# this time maybe cache write,  ignore it's failure
@@ -592,11 +598,19 @@ test_1_check_write() {
 	cancel_lru_locks osc
 	sync; sync_all_data || true
 
+
 	printf "\nSTART edquot debug in test_1_check_write 2\n"
-	$LFS quota -${short_qtype} $entity $DIR --pool $qpool
+	printf "global pool\n"
+	$LFS quota -${short_qtype} $entity $DIR
 	$LFS quota -e -${short_qtype} $entity $DIR
-	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	printf "pool01\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool01
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool01
+	printf "pool0\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool0
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool0
 	printf "\nEND edquot debug in test_1_check_write 2\n\n"
+
 
 
 	# sync means client wrote all it's cache, but id doesn't
@@ -608,11 +622,16 @@ test_1_check_write() {
 			"user write success, but expect EDQUOT"
 
 	printf "\nSTART edquot debug in test_1_check_write 3\n"
-	$LFS quota -${short_qtype} $entity $DIR --pool $qpool
+	printf "global pool\n"
+	$LFS quota -${short_qtype} $entity $DIR
 	$LFS quota -e -${short_qtype} $entity $DIR
-	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	printf "pool01\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool01
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool01
+	printf "pool0\n"
+	$LFS quota -${short_qtype} $entity $DIR --pool $qpool0
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool0
 	printf "\nEND edquot debug in test_1_check_write 3\n\n"
-
 
 }
 
@@ -842,8 +861,13 @@ run_test 1b "Quota pools: Block hard limit (normal use and out of quota)"
 test_1b2() {
 	local limit=10  # 10M
 	local global_limit=20  # 100M
-	local testfile="$DIR/$tdir/$tfile-0"
-	local qpool="qpool1"
+	local testfile0="$DIR/$tdir/$tfile-0"
+	local testfile1="$DIR/$tdir/$tfile-1"
+
+
+	# create 2 pools, qpool01 has OST[0,1], qpool0 has OST[0] 
+	local qpool01="qpool01"
+	local qpool0="qpool0"
 
 	mds_supports_qp
 	setup_quota_test || error "setup quota failed with $?"
@@ -857,11 +881,22 @@ test_1b2() {
 	$LFS setquota -u $TSTUSR -b 0 -B ${global_limit}M -i 0 -I 0 $DIR ||
 		error "set user quota failed"
 
-	pool_add $qpool || error "pool_add failed"
-	pool_add_targets $qpool 0 $(($OSTCOUNT - 1)) ||
+
+	# put both OSTS in qpool01
+	pool_add $qpool01 || error "pool_add failed"
+	pool_add_targets $qpool01 0 $(($OSTCOUNT - 1)) ||
 		error "pool_add_targets failed"
 
-	$LFS setquota -u $TSTUSR -B ${limit}M --pool $qpool $DIR ||
+	$LFS setquota -u $TSTUSR -B ${limit}M --pool $qpool01 $DIR ||
+		error "set user quota failed"
+
+
+	# put only OST[0] in qpool0
+	pool_add $qpool0 || error "pool_add failed"
+	pool_add_targets $qpool0 0  ||
+		error "pool_add_targets failed"
+
+	$LFS setquota -u $TSTUSR -B ${limit}M --pool $qpool0 $DIR ||
 		error "set user quota failed"
 
 	# make sure the system is clean
@@ -876,15 +911,32 @@ test_1b2() {
 	$LFS quota -u $TSTUSR $DIR
 	printf "\nEND edquot debug 1\n"
 
-	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
-	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
+	# testfile1 should only be on OST[1]
+	$LFS setstripe $testfile1 -c 1 -o 1 || error "setstripe $testfile1 failed"
+	chown $TSTUSR.$TSTUSR $testfile1 || error "chown $testfile1 failed"
 
-	test_1_check_write $testfile "user" $limit
 
-	rm -f $testfile
+	# testfile0 should only be on OST[0]
+	$LFS setstripe $testfile0 -c 1 -o 0 || error "setstripe $testfile0 failed"
+	chown $TSTUSR.$TSTUSR $testfile0 || error "chown $testfile0 failed"
+
+
+	printf "\n\nTEST FILE 1\n\n"
+	test_1_check_write $testfile1 "user" $limit
+
+	printf "\n\nTEST FILE 0\n\n"
+	# after writing to testfile0, the quota for pool01 should be reached
+	# therefore, the user should fail to write to testfile0
+	test_1_check_write $testfile0 "user" $limit
+
+
+	rm -f $testfile1
 	wait_delete_completed || error "wait_delete_completed failed"
+	rm -f $testfile0
+	wait_delete_completed || error "wait_delete_completed failed"
+
 	sync_all_data || true
-	used=$(getquota -u $TSTUSR global curspace $qpool)
+	used=$(getquota -u $TSTUSR global curspace $qpool01)
 	[ $used -ne 0 ] && quota_error u $TSTUSR \
 		"user quota isn't released after deletion"
 
