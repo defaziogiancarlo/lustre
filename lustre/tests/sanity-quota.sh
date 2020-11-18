@@ -557,7 +557,102 @@ test_1_check_write() {
 	local limit=$3
 	local short_qtype=${qtype:0:1}
 
+	local debug_dir=/home/vagrant/edquot_debug_logs
 	
+
+	# TODO set lquota for debug mask
+	$LCTL set_param debug=-1
+	$LCTL set_param subsystem_debug=lquota
+
+	# Added for edquot
+	printf "\nSTART edquot debug in test_1_check_write 0\n"
+	printf "limit:  $limit\n"
+	printf "limit / 2:  $((limit/2))\n"
+	printf "qtype: $qtype\n"
+	printf "short_qtype: ${short_qtype}\n"
+	printf "\nEND edquot debug in test_1_check_write 0\n"
+	local entity
+	if [ $short_qtype = "p" ]
+	then
+	    entity=$TSTPRJID
+	else
+	    entity=$TSTUSR
+	fi
+
+	log "Write..."
+	$RUNAS $DD of=$testfile count=$((limit/2)) ||
+		quota_error $short_qtype $TSTUSR \
+			"$qtype write failure, but expect success"
+	log "Write out of block quota ..."
+
+	# Added for edquot
+	printf "\nSTART edquot debug in test_1_check_write 1\n"
+	printf "global pool\n"
+	$LCTL debug_kernel /dev/null
+	$LFS quota -e -${short_qtype} $entity $DIR
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"1"
+	# qpool
+	$LCTL debug_kernel /dev/null
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"2"
+	printf "\nEND edquot debug in test_1_check_write 1\n\n"
+
+	# this time maybe cache write,  ignore it's failure
+	$RUNAS $DD of=$testfile count=$((limit/2)) seek=$((limit/2)) || true
+	# flush cache, ensure noquota flag is set on client
+	cancel_lru_locks osc
+	sync; sync_all_data || true
+
+
+	printf "\nSTART edquot debug in test_1_check_write 2\n"
+	printf "global pool\n"
+	$LCTL debug_kernel /dev/null
+	$LFS quota -e -${short_qtype} $entity $DIR
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"3"
+	# qpool
+	$LCTL debug_kernel /dev/null
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"4"
+	printf "\nEND edquot debug in test_1_check_write 2\n\n"
+
+	# sync means client wrote all it's cache, but id doesn't
+	# garantee that slave got new edquot trough glimpse.
+	# so wait a little to be sure slave got it.
+	sleep 5
+	$RUNAS $DD of=$testfile count=1 seek=$limit &&
+		quota_error $short_qtype $TSTUSR \
+			"user write success, but expect EDQUOT"
+
+
+
+	printf "\nSTART edquot debug in test_1_check_write 3\n"
+	printf "global pool\n"
+	$LCTL debug_kernel /dev/null
+	$LFS quota -e -${short_qtype} $entity $DIR
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"5"
+	# qpool
+	$LCTL debug_kernel /dev/null
+	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"6"
+	printf "\nEND edquot debug in test_1_check_write 3\n\n"
+
+}
+
+
+# usage: test_1_check_write tfile user|group|project
+test_1_check_write_1b2() {
+	local testfile="$1"
+	local qtype="$2"
+	local limit=$3
+	local short_qtype=${qtype:0:1}
+
+	local debug_dir=/home/vagrant/edquot_debug_logs
+	
+
+	# TODO set lquota for debug mask
+	$LCTL set_param debug=-1
+	$LCTL set_param subsystem_debug=lquota
+
 	# Added for edquot
 	printf "\nSTART edquot debug in test_1_check_write 0\n"
 	printf "limit:  $limit\n"
@@ -583,13 +678,21 @@ test_1_check_write() {
 	printf "\nSTART edquot debug in test_1_check_write 1\n"
 	printf "global pool\n"
 	$LFS quota -${short_qtype} $entity $DIR
+	# TODO dump logs
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"1"
+	# TODO write logs to some file
 	printf "pool01\n"
 	$LFS quota -${short_qtype} $entity $DIR --pool $qpool01
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool01
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"2"
 	printf "pool0\n"
 	$LFS quota -${short_qtype} $entity $DIR --pool $qpool0
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool0
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"3"
 	printf "\nEND edquot debug in test_1_check_write 1\n\n"
 
 	# this time maybe cache write,  ignore it's failure
@@ -602,13 +705,19 @@ test_1_check_write() {
 	printf "\nSTART edquot debug in test_1_check_write 2\n"
 	printf "global pool\n"
 	$LFS quota -${short_qtype} $entity $DIR
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"4"
 	printf "pool01\n"
 	$LFS quota -${short_qtype} $entity $DIR --pool $qpool01
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool01
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"5"
 	printf "pool0\n"
 	$LFS quota -${short_qtype} $entity $DIR --pool $qpool0
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool0
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"6"
 	printf "\nEND edquot debug in test_1_check_write 2\n\n"
 
 
@@ -624,16 +733,23 @@ test_1_check_write() {
 	printf "\nSTART edquot debug in test_1_check_write 3\n"
 	printf "global pool\n"
 	$LFS quota -${short_qtype} $entity $DIR
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"7"
 	printf "pool01\n"
 	$LFS quota -${short_qtype} $entity $DIR --pool $qpool01
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool01
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"8"
 	printf "pool0\n"
 	$LFS quota -${short_qtype} $entity $DIR --pool $qpool0
+	$LCTL debug_kernel /dev/null
 	$LFS quota -e -${short_qtype} $entity $DIR --pool $qpool0
+	$LCTL debug_kernel ${debug_dir}/${short_qtype}"9"
 	printf "\nEND edquot debug in test_1_check_write 3\n\n"
 
 }
+
 
 check_write_fallocate() {
 	local testfile="$1"
