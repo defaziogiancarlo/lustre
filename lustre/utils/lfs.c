@@ -554,7 +554,7 @@ command_t cmdlist[] = {
 	 "      be notified after the quota is over soft limit but prevents\n"
 	 "      the soft limit from becoming the hard limit."},
 	{"quota", lfs_quota, 0, "Display disk usage and limits.\n"
-	 "usage: quota [-q] [-v] [-h] [-o <obd_uuid>|-i <mdt_idx>|-I "
+	 "usage: quota [-q] [-v] [-e] [-h] [-o <obd_uuid>|-i <mdt_idx>|-I "
 		       "<ost_idx>]\n"
 	 "             [<-u|-g|-p> <uname>|<uid>|<gname>|<gid>|<projid>] <filesystem>\n"
 	 "       quota [-o <obd_uuid>|-i <mdt_idx>|-I <ost_idx>] -t <-u|-g|-p> <filesystem>\n"
