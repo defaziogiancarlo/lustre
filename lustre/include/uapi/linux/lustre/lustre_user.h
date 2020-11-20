@@ -91,6 +91,7 @@ extern "C" {
 #define PRJQUOTA 2
 #endif
 
+/* For checking the edquot flag value via llapi_quotactl() */
 enum lustre_dqi_flags {
 	LUSTRE_DQF_EDQUOT           = 0x40000000U,
 	LUSTRE_DQF_EDQUOT_SUPPORTED = 0x80000000U,
