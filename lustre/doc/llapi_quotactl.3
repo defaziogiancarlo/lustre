@@ -97,11 +97,12 @@ and
 .I dqb_itime
 are block and inode softlimit grace period expiration timestamps for the requested user or group.
 
-There is a feature for quickly checking if a user or group is exceeding a quota or not. This is done by checking bits defined by the enums 
+There is a feature for quickly checking if a user or group is exceeding \
+a quota or not. This is done by checking bits defined by the enums
 .I LUSTRE_DQF_EDQUOT_SUPPORTED
 and
 .I LUSTRE_DQF_EDQUOT
-in 
+in
 .I dqi_flags
 after
 .B llapi_quotactl(\|)
@@ -109,20 +110,23 @@ returns.
 If the
 .I LUSTRE_DQF_EDQUOT_SUPPORTED
 bit is set in
-.IR dqi_flags ,
-then the feature is supported. Otherwise, the feature is not supported and the
+.IR dqi_flags, \
+then the feature is supported. \
+Otherwise, the feature is not supported and the
 .I LUSTRE_DQF_EDQUOT
 bit has no meaning.
-If the 
+If the
 .I LUSTRE_DQF_EDQUOT
-bit is set, then the user or group has exceeded some quota.
-It's actually possible that the user or group still won't be able to write due to quota limitations even if the
+bit is set, then the user or group has exceeded some quota. \
+It's actually possible that the user or group still won't \
+be able to write due to quota limitations even if the
 .I LUSTRE_DQF_EDQUOT
-is not set.
-There can be some lag between when a quota is exceeded and when the QMT sets the
+is not set. \
+There can be some lag between when a quota is exceeded and \
+when the QMT sets the
 .I edquot
-flag. Also, if a user or group is at quota, but exceeding it, the next attempt to write can still fail.
- 
+flag. Also, if a user or group is at quota, but exceeding it, \
+the next attempt to write can still fail.
 
 Quotas must be turned on before using this command.
 .TP
