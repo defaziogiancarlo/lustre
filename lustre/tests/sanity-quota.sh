@@ -222,6 +222,55 @@ getquota() {
 # }
 
 
+# check if edquot supported
+# if not, it should say so, and not over/under
+# returns 0 is equot supported, 1 otherwise
+# usage: is_edquot_supported <username>|<uid>
+# TODO allow for -u -g -p
+is_edquot_supported() {
+    local id=$1
+    local quota_status
+
+    [ "$#" != 1 ] && error "is_edquot_supported:
+	wrong number of arguments: $#"
+
+    quota_status=$($LFS quota -q -e -u "$id" $DIR | \
+	awk '{ if (NR == 1) print $2 }')
+
+    [ $quota_status = "quota" ] && return 1
+    [ $quota_status = "over" -o $quota_status = "under" ] && return 0
+    quota_error "is_edquot_supported:
+	invalid edquot status: $quota_status"
+}
+
+# check if a user, group, or project has exceeded some quota
+# returns 0 if over quota, 1 if not over quota,
+# error if server doesn't support this feature or status makes no sense
+# usage: is_over_quota -u|-g|-p <username>|<groupname>|<projid>
+is_over_quota() {
+    local flag=$1
+    local id=$2
+    local edquot
+
+    sync_all_data > /dev/null 2>&1 || true
+
+    [ "$#" != 2 ] && error "is_over_quota: \
+	wrong number of arguments: $#"
+
+    [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+    error "is_over_quota: wrong u/g/p specifier $flag passed"
+
+    edquot=$($LFS quota -q -e "$flag" "$id" $DIR | \
+	awk '{ if (NR == 1) print $2 }')
+
+    [ $edquot = "over" ] && return 0
+    [ $edquot = "under" ] && return 1
+    [ $edquot = "quota" ] &&
+    quota_error "is_over_quota: edquot unsupported"
+    quota_error "is_over_quota: invalid edquot status: $edquot"
+}
+
+
 # set mdt quota type
 # usage: set_mdt_qtype ugp|u|g|p|none
 set_mdt_qtype() {
@@ -557,6 +606,8 @@ test_1_check_write() {
 	local limit=$3
 	local short_qtype=${qtype:0:1}
 
+	# TODO check if -e flag supported
+
 	log "Write..."
 	$RUNAS $DD of=$testfile count=$((limit/2)) ||
 		quota_error $short_qtype $TSTUSR \
@@ -567,6 +618,10 @@ test_1_check_write() {
 	# flush cache, ensure noquota flag is set on client
 	cancel_lru_locks osc
 	sync; sync_all_data || true
+
+	# check edquot
+
+
 	# sync means client wrote all it's cache, but id doesn't
 	# garantee that slave got new edquot trough glimpse.
 	# so wait a little to be sure slave got it.
