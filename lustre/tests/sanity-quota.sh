@@ -229,12 +229,13 @@ getquota() {
 # TODO allow for -u -g -p
 is_edquot_supported() {
     local id=$1
+    local flag=$2
     local quota_status
 
-    [ "$#" != 1 ] && error "is_edquot_supported:
+    [ "$#" != 2 ] && error "is_edquot_supported:
 	wrong number of arguments: $#"
 
-    quota_status=$($LFS quota -q -e -u "$id" $DIR | \
+    quota_status=$($LFS quota -q -e $flag "$id" $DIR | \
 	awk '{ if (NR == 1) print $2 }')
 
     [ $quota_status = "quota" ] && return 1
@@ -249,10 +250,8 @@ is_edquot_supported() {
 # usage: is_over_quota -u|-g|-p <username>|<groupname>|<projid>
 is_over_quota() {
     local flag=$1
-    local id=$2
-    local edquot
 
-    sync_all_data > /dev/null 2>&1 || true
+    #sync_all_data > /dev/null 2>&1 || true
 
     [ "$#" != 2 ] && error "is_over_quota: \
 	wrong number of arguments: $#"
@@ -260,14 +259,25 @@ is_over_quota() {
     [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
     error "is_over_quota: wrong u/g/p specifier $flag passed"
 
-    edquot=$($LFS quota -q -e "$flag" "$id" $DIR | \
+    local entity
+    if [ $flag = "-p" ]
+    then
+	entity=$TSTPRJID
+    else
+	entity=$TSTUSR
+    fi
+
+    #$LFS quota -e ${flag} $entity $DIR
+    #$LFS quota -e ${flag} $entity $DIR --pool $qpool
+
+    local quota_status=$($LFS quota -q -e $flag $entity $DIR | \
 	awk '{ if (NR == 1) print $2 }')
 
-    [ $edquot = "over" ] && return 0
-    [ $edquot = "under" ] && return 1
-    [ $edquot = "quota" ] &&
-    quota_error "is_over_quota: edquot unsupported"
-    quota_error "is_over_quota: invalid edquot status: $edquot"
+    [ $quota_status = "over" ] && return 0
+    [ $quota_status = "under" ] && return 1
+    [ $quota_status = "quota" ] &&
+    	quota_error "is_over_quota: quota_status unsupported"
+    quota_error "is_over_quota: invalid quota_status status: $quota_status"
 }
 
 
@@ -606,21 +616,17 @@ test_1_check_write() {
 	local limit=$3
 	local short_qtype=${qtype:0:1}
 
-	# TODO check if -e flag supported
-
 	log "Write..."
 	$RUNAS $DD of=$testfile count=$((limit/2)) ||
 		quota_error $short_qtype $TSTUSR \
 			"$qtype write failure, but expect success"
 	log "Write out of block quota ..."
+	
 	# this time maybe cache write,  ignore it's failure
 	$RUNAS $DD of=$testfile count=$((limit/2)) seek=$((limit/2)) || true
 	# flush cache, ensure noquota flag is set on client
 	cancel_lru_locks osc
 	sync; sync_all_data || true
-
-	# check edquot
-
 
 	# sync means client wrote all it's cache, but id doesn't
 	# garantee that slave got new edquot trough glimpse.
@@ -655,7 +661,7 @@ check_write_fallocate() {
 
 # test block hardlimit
 test_1a() {
-	local limit=10  # 10M
+    local limit=10  # 10M
 	local testfile="$DIR/$tdir/$tfile-0"
 
 	setup_quota_test || error "setup quota failed with $?"
@@ -1194,6 +1200,213 @@ test_1h() {
 	resetquota -u $TSTUSR
 }
 run_test 1h "Block hard limit test using fallocate"
+
+
+test_1i() {
+	# similar to test_1a but with edquot checks
+	local limit=10  # 10M
+	local testfile="$DIR/$tdir/$tfile-0"
+
+	setup_quota_test || error "setup quota failed with $?"
+	trap cleanup_quota_test EXIT
+
+	# enable ost quota
+	set_ost_qtype $QTYPE || error "enable ost quota failed"
+
+	# test for user
+	log "User quota (block hardlimit:$limit MB)"
+	$LFS setquota -u $TSTUSR -b 0 -B ${limit}M -i 0 -I 0 $DIR ||
+		error "set user quota failed"
+
+	# check if edquot check is supported
+	if ! is_edquot_supported -u $TSTUSR; then
+		echo "edquot check is not supported"
+		cleanup_quota_test
+		return 0
+	fi
+
+	# make sure the system is clean
+	local used=$(getquota -u $TSTUSR global curspace)
+	[ $used -ne 0 ] && error "Used space($used) for user $TSTUSR isn't 0."
+
+	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
+	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
+
+	is_over_quota -u $TSTUSR &&
+		quota_error u $TSTUSR
+		"edquot check indicates over quota, expected under quota"
+
+	test_1_check_write $testfile "user" $limit
+
+	is_over_quota -u $TSTUSR ||
+		quota_error u $TSTUSR
+		"edquot check indicates under quota, expected over quota"
+
+	rm -f $testfile
+	wait_delete_completed || error "wait_delete_completed failed"
+	sync_all_data || true
+	used=$(getquota -u $TSTUSR global curspace)
+	[ $used -ne 0 ] && quota_error u $TSTUSR \
+		"user quota isn't released after deletion"
+	resetquota -u $TSTUSR
+
+	# test for group
+	log "--------------------------------------"
+	log "Group quota (block hardlimit:$limit MB)"
+	$LFS setquota -g $TSTUSR -b 0 -B ${limit}M -i 0 -I 0 $DIR ||
+		error "set group quota failed"
+
+	testfile="$DIR/$tdir/$tfile-1"
+	# make sure the system is clean
+	used=$(getquota -g $TSTUSR global curspace)
+	[ $used -ne 0 ] && error "Used space ($used) for group $TSTUSR isn't 0"
+
+	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
+	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
+
+	is_over_quota -g $TSTUSR &&
+		quota_error g $TSTUSR
+		"edquot check indicates over quota, expected under quota"
+
+	test_1_check_write $testfile "group" $limit
+
+	is_over_quota -g $TSTUSR ||
+		quota_error g $TSTUSR
+		"edquot check indicates under quota, expected over quota"
+
+	rm -f $testfile
+	wait_delete_completed || error "wait_delete_completed failed"
+	sync_all_data || true
+	used=$(getquota -g $TSTUSR global curspace)
+	[ $used -ne 0 ] && quota_error g $TSTUSR \
+				"Group quota isn't released after deletion"
+	resetquota -g $TSTUSR
+
+	if ! is_project_quota_supported; then
+		echo "Project quota is not supported"
+		cleanup_quota_test
+		return 0
+	fi
+
+	testfile="$DIR/$tdir/$tfile-2"
+	# make sure the system is clean
+	used=$(getquota -p $TSTPRJID global curspace)
+	[ $used -ne 0 ] &&
+		error "used space($used) for project $TSTPRJID isn't 0"
+
+	# test for Project
+	log "--------------------------------------"
+	log "Project quota (block hardlimit:$limit mb)"
+	$LFS setquota -p $TSTPRJID -b 0 -B ${limit}M -i 0 -I 0 $DIR ||
+		error "set project quota failed"
+
+	$LFS setstripe $testfile -c 1 || error "setstripe $testfile failed"
+	chown $TSTUSR:$TSTUSR $testfile || error "chown $testfile failed"
+	change_project -p $TSTPRJID $testfile
+
+	#test_1_check_write $testfile "project" $limit
+
+	is_over_quota -p $TSTPRJID &&
+		quota_error p $TSTPRJID
+		"edquot check indicates over quota, expected under quota"
+
+	test_1_check_write $testfile "project" $limit
+
+	is_over_quota -p $TSTPRJID ||
+		quota_error p $TSTUSR
+		"edquot check indicates under quota, expected over quota"
+
+	# cleanup
+	cleanup_quota_test
+
+	used=$(getquota -p $TSTPRJID global curspace)
+	[ $used -ne 0 ] && quota_error p $TSTPRJID \
+		"project quota isn't released after deletion"
+
+	resetquota -p $TSTPRJID
+}
+run_test 1i "Quota quick edquot check: Block and Inode"
+
+
+test_1j() {
+
+    # TODO  create pools and quotas for each pool
+    # TODO  do writes, check all pools and global pool for correct edquot value
+    # TODO  do for user group and project
+    # TODO  clean up
+	local limit1=10  # 10M
+	local limit2=12  # 12M
+	local global_limit=20  # 100M
+	local testfile="$DIR/$tdir/$tfile-0"
+	local qpool1="qpool1"
+	local qpool2="qpool2"
+
+	mds_supports_qp
+	setup_quota_test || error "setup quota failed with $?"
+	stack_trap cleanup_quota_test EXIT
+
+	# enable ost quota
+	set_ost_qtype $QTYPE || error "enable ost quota failed"
+
+	# test for user
+	log "User quota (block hardlimit:$global_limit MB)"
+	$LFS setquota -u $TSTUSR -b 0 -B ${global_limit}M -i 0 -I 0 $DIR ||
+		error "set user quota failed"
+
+	# check if edquot check is supported
+	if ! is_edquot_supported -u $TSTUSR; then
+		echo "edquot check is not supported"
+		cleanup_quota_test
+		return 0
+	fi
+
+	pool_add $qpool1 || error "pool_add failed"
+	pool_add_targets $qpool1 0 $(($OSTCOUNT - 1)) ||
+		error "pool_add_targets failed"
+
+	pool_add $qpool2 || error "pool_add failed"
+	pool_add_targets $qpool2 0 $(($OSTCOUNT - 1)) ||
+		error "pool_add_targets failed"
+
+	$LFS setquota -u $TSTUSR -B ${limit1}M --pool $qpool1 $DIR ||
+		error "set user quota failed"
+
+	$LFS setquota -u $TSTUSR -B ${limit2}M --pool $qpool2 $DIR ||
+	error "set user quota failed"
+
+	# make sure the system is clean
+	local used=$(getquota -u $TSTUSR global curspace)
+	echo "used $used"
+	[ $used -ne 0 ] && error "used space($used) for user $TSTUSR isn't 0."
+
+	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
+
+	# TODO check edquot values for each pool (global, qpool1, qpool2)
+
+	test_1_check_write $testfile "user" $limit1
+
+	# TODO check edquot values for each pool (global, qpool1, qpool2)
+
+	used=$(getquota -u $TSTUSR global curspace $qpool1)
+	echo "qpool1 used $used"
+	used=$(getquota -u $TSTUSR global curspace $qpool2)
+	echo "qpool2 used $used"
+
+	rm -f $testfile
+	wait_delete_completed || error "wait_delete_completed failed"
+	sync_all_data || true
+
+	used=$(getquota -u $TSTUSR global curspace $qpool1)
+	[ $used -ne 0 ] && quota_error u $TSTUSR \
+		"user quota isn't released after deletion"
+	resetquota -u $TSTUSR
+
+	# cleanup
+	cleanup_quota_test
+
+}
+run_test 1j "Quota quick edquot check: OST pools"
+
 
 # test inode hardlimit
 test_2() {
