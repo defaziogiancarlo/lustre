@@ -250,6 +250,7 @@ is_edquot_supported() {
 # usage: is_over_quota -u|-g|-p <username>|<groupname>|<projid>
 is_over_quota() {
     local flag=$1
+    local entity=$2
 
     #sync_all_data > /dev/null 2>&1 || true
 
@@ -259,17 +260,6 @@ is_over_quota() {
     [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
     error "is_over_quota: wrong u/g/p specifier $flag passed"
 
-    local entity
-    if [ $flag = "-p" ]
-    then
-	entity=$TSTPRJID
-    else
-	entity=$TSTUSR
-    fi
-
-    #$LFS quota -e ${flag} $entity $DIR
-    #$LFS quota -e ${flag} $entity $DIR --pool $qpool
-
     local quota_status=$($LFS quota -q -e $flag $entity $DIR | \
 	awk '{ if (NR == 1) print $2 }')
 
@@ -278,6 +268,31 @@ is_over_quota() {
     [ $quota_status = "quota" ] &&
     	quota_error "is_over_quota: quota_status unsupported"
     quota_error "is_over_quota: invalid quota_status status: $quota_status"
+}
+
+# do quick edquot check now with OST pools
+# is_over_quota -u|-g|-p <username>|<groupname>|<projid> <poolname>
+is_over_quota_pooled() {
+    local flag=$1
+    local entity=$2
+    local pool=$3
+
+    #sync_all_data > /dev/null 2>&1 || true
+
+    [ "$#" != 3 ] && error "is_over_quota_pooled: \
+	wrong number of arguments: $#"
+
+    [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+    error "is_over_quota: wrong u/g/p specifier $flag passed"
+
+    local quota_status=$($LFS quota -q -e $flag $entity --pool $pool $DIR | \
+	awk '{ if (NR == 1) print $2 }')
+
+    [ $quota_status = "over" ] && return 0
+    [ $quota_status = "under" ] && return 1
+    [ $quota_status = "quota" ] &&
+    	quota_error "is_over_quota_pooled: quota_status unsupported"
+    quota_error "is_over_quota_pooled: invalid quota_status status: $quota_status"
 }
 
 
@@ -1233,13 +1248,13 @@ test_1i() {
 	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
 
 	is_over_quota -u $TSTUSR &&
-		quota_error u $TSTUSR
+		quota_error u $TSTUSR \
 		"edquot check indicates over quota, expected under quota"
 
 	test_1_check_write $testfile "user" $limit
 
 	is_over_quota -u $TSTUSR ||
-		quota_error u $TSTUSR
+		quota_error u $TSTUSR \
 		"edquot check indicates under quota, expected over quota"
 
 	rm -f $testfile
@@ -1265,13 +1280,13 @@ test_1i() {
 	chown $TSTUSR.$TSTUSR $testfile || error "chown $testfile failed"
 
 	is_over_quota -g $TSTUSR &&
-		quota_error g $TSTUSR
+		quota_error g $TSTUSR \
 		"edquot check indicates over quota, expected under quota"
 
 	test_1_check_write $testfile "group" $limit
 
 	is_over_quota -g $TSTUSR ||
-		quota_error g $TSTUSR
+		quota_error g $TSTUSR \
 		"edquot check indicates under quota, expected over quota"
 
 	rm -f $testfile
@@ -1307,13 +1322,13 @@ test_1i() {
 	#test_1_check_write $testfile "project" $limit
 
 	is_over_quota -p $TSTPRJID &&
-		quota_error p $TSTPRJID
+		quota_error p $TSTPRJID \
 		"edquot check indicates over quota, expected under quota"
 
 	test_1_check_write $testfile "project" $limit
 
 	is_over_quota -p $TSTPRJID ||
-		quota_error p $TSTUSR
+		quota_error p $TSTUSR \
 		"edquot check indicates under quota, expected over quota"
 
 	# cleanup
@@ -1381,11 +1396,48 @@ test_1j() {
 
 	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
 
-	# TODO check edquot values for each pool (global, qpool1, qpool2)
+	# check for global pool
+	is_over_quota -u $TSTUSR &&
+		quota_error u $TSTUSR \
+		"edquot check indicates over quota, expected under quota"
+
+	# check for pool1
+	is_over_quota_pooled -u $TSTUSR $qpool1 &&
+		quota_error u $TSTUSR \
+		"edquot check indicates over quota, expected under quota"
+
+	# check for pool2
+	is_over_quota_pooled -u $TSTUSR $qpool2 &&
+		quota_error u $TSTUSR \
+		"edquot check indicates over quota, expected under quota"
 
 	test_1_check_write $testfile "user" $limit1
 
-	# TODO check edquot values for each pool (global, qpool1, qpool2)
+	# check for glbal pool
+	is_over_quota -u $TSTUSR &&
+		quota_error u $TSTUSR \
+		"edquot check indicates over quota, expected under quota"
+
+	# TODO check for pool1
+	# $LFS quota -e -u $TSTUSR --pool $qpool1 $DIR
+	is_over_quota_pooled -u $TSTUSR $qpool1 || quota_error u $TSTUSR \
+	    "edquot check indicates under quota, expected over quota"
+
+
+	# if ! is_over_quota_pooled -u $TSTUSR $qpool1
+	# then
+	#     quota_error u $TSTUSR \
+	# 	"edquot check indicates under quota, expected over quota"
+	# fi
+	#local www=$?
+	#printf "X\n${www}X\n"
+
+
+
+	# TODO check for pool2
+	is_over_quota_pooled -u $TSTUSR $qpool2 &&
+		quota_error u $TSTUSR \
+		"edquot check indicates over quota, expected under quota"
 
 	used=$(getquota -u $TSTUSR global curspace $qpool1)
 	echo "qpool1 used $used"
