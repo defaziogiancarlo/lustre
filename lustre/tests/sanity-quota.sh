@@ -204,24 +204,6 @@ getquota() {
 		| tr -d "*"
 }
 
-# Check if the edquot checking feature is supported
-# If edquot is supported, lfs will say over or under 
-# and this function will return 0.
-# If edquot checking is not supported,
-# lfs will say say and this function will return 1
-# any other response from lfs is an error
-# usage: is_edquot_supported -u <username>|<uid>
-# is_edquot_supported() {
-	
-
-
-# }
-
-# is_over_quota() {
-
-# }
-
-
 # check if edquot supported
 # if not, it should say so, and not over/under
 # returns 0 is equot supported, 1 otherwise
@@ -266,7 +248,7 @@ is_over_quota() {
     [ $quota_status = "over" ] && return 0
     [ $quota_status = "under" ] && return 1
     [ $quota_status = "quota" ] &&
-    	quota_error "is_over_quota: quota_status unsupported"
+	quota_error "is_over_quota: quota_status unsupported"
     quota_error "is_over_quota: invalid quota_status status: $quota_status"
 }
 
@@ -291,7 +273,7 @@ is_over_quota_pooled() {
     [ $quota_status = "over" ] && return 0
     [ $quota_status = "under" ] && return 1
     [ $quota_status = "quota" ] &&
-    	quota_error "is_over_quota_pooled: quota_status unsupported"
+	quota_error "is_over_quota_pooled: quota_status unsupported"
     quota_error "is_over_quota_pooled: invalid quota_status status: $quota_status"
 }
 
@@ -636,7 +618,7 @@ test_1_check_write() {
 		quota_error $short_qtype $TSTUSR \
 			"$qtype write failure, but expect success"
 	log "Write out of block quota ..."
-	
+
 	# this time maybe cache write,  ignore it's failure
 	$RUNAS $DD of=$testfile count=$((limit/2)) seek=$((limit/2)) || true
 	# flush cache, ensure noquota flag is set on client
@@ -1319,8 +1301,6 @@ test_1i() {
 	chown $TSTUSR:$TSTUSR $testfile || error "chown $testfile failed"
 	change_project -p $TSTPRJID $testfile
 
-	#test_1_check_write $testfile "project" $limit
-
 	is_over_quota -p $TSTPRJID &&
 		quota_error p $TSTPRJID \
 		"edquot check indicates over quota, expected under quota"
@@ -1344,11 +1324,6 @@ run_test 1i "Quota quick edquot check: Block and Inode"
 
 
 test_1j() {
-
-    # TODO  create pools and quotas for each pool
-    # TODO  do writes, check all pools and global pool for correct edquot value
-    # TODO  do for user group and project
-    # TODO  clean up
 	local limit1=10  # 10M
 	local limit2=12  # 12M
 	local global_limit=20  # 100M
@@ -1396,45 +1371,28 @@ test_1j() {
 
 	used=$(getquota -u $TSTUSR global bhardlimit $qpool)
 
-	# check for global pool
+	# check for global pool, pool1, and pool2 before and after
 	is_over_quota -u $TSTUSR &&
 		quota_error u $TSTUSR \
 		"edquot check indicates over quota, expected under quota"
 
-	# check for pool1
 	is_over_quota_pooled -u $TSTUSR $qpool1 &&
 		quota_error u $TSTUSR \
 		"edquot check indicates over quota, expected under quota"
 
-	# check for pool2
 	is_over_quota_pooled -u $TSTUSR $qpool2 &&
 		quota_error u $TSTUSR \
 		"edquot check indicates over quota, expected under quota"
 
 	test_1_check_write $testfile "user" $limit1
 
-	# check for glbal pool
 	is_over_quota -u $TSTUSR &&
 		quota_error u $TSTUSR \
 		"edquot check indicates over quota, expected under quota"
 
-	# TODO check for pool1
-	# $LFS quota -e -u $TSTUSR --pool $qpool1 $DIR
 	is_over_quota_pooled -u $TSTUSR $qpool1 || quota_error u $TSTUSR \
 	    "edquot check indicates under quota, expected over quota"
 
-
-	# if ! is_over_quota_pooled -u $TSTUSR $qpool1
-	# then
-	#     quota_error u $TSTUSR \
-	# 	"edquot check indicates under quota, expected over quota"
-	# fi
-	#local www=$?
-	#printf "X\n${www}X\n"
-
-
-
-	# TODO check for pool2
 	is_over_quota_pooled -u $TSTUSR $qpool2 &&
 		quota_error u $TSTUSR \
 		"edquot check indicates over quota, expected under quota"
