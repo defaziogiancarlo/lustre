@@ -7218,22 +7218,19 @@ static void kbytes2str(__u64 num, char *buf, int buflen, bool h)
 	}
 }
 
-
 static void print_exceeding_quota_status(char *name, char *mnt,
 					 struct if_quotactl *qctl)
 {
 	__u32 edquot_valid = qctl->qc_dqinfo.dqi_flags &
 		LUSTRE_DQF_EDQUOT_SUPPORTED;
 	__u32 edquot = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT;
+
 	if (edquot_valid)
 		printf("%s %s quota on %s\n", name,
 		       edquot ? "over" : "under", mnt);
 	else
-		printf("lfs quota -e is not supported on %s."
-		       " run without \"-e\"\n", mnt);
+		printf("\'lfs quota -e\' is not supported on %s.", mnt);
 }
-
-
 
 #define STRBUF_LEN	32
 static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
