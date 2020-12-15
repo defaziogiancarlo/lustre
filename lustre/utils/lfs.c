@@ -7213,23 +7213,26 @@ static void kbytes2str(__u64 num, char *buf, int buflen, bool h)
 	}
 }
 
-static void print_exceeding_quota_status(char *name, char *mnt,
+static int print_edquot_status(char *name, char *mnt,
 					 struct if_quotactl *qctl)
 {
 	__u32 edquot_valid = qctl->qc_dqinfo.dqi_flags &
 		LUSTRE_DQF_EDQUOT_SUPPORTED;
 	__u32 edquot = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT;
 
-	if (edquot_valid)
+	if (edquot_valid) {
 		printf("%s %s quota on %s\n", name,
 		       edquot ? "over" : "under", mnt);
-	else
-		printf("\'lfs quota -e\' is not supported on %s.", mnt);
+		return 0;
+	}
+	
+	return -1;
+	//printf("\'lfs quota -e\' is not supported on %s.", mnt);
 }
 
 #define STRBUF_LEN	32
 static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
-			int rc, bool h, bool show_default)
+			int rc, bool h, bool show_default, bool show_edquot)
 {
 	time_t now;
 
@@ -7262,6 +7265,12 @@ static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
 				iover = 2;
 			else
 				iover = 3;
+		}
+
+		if (show_edquot) {
+		    printf("%s quota on %s\n",
+			   (bover == 1 || iover == 1) ? "over" : "under", mnt);
+		    return;
 		}
 
 		if (strlen(mnt) > 15)
@@ -7439,7 +7448,7 @@ static int print_obd_quota(char *mnt, struct if_quotactl *qctl, int is_mdt,
 		}
 
 		print_quota(obd_uuid2str(&qctl->obd_uuid), qctl,
-			    qctl->qc_valid, 0, h, false);
+			    qctl->qc_valid, 0, h, false, false);
 		*total += is_mdt ? qctl->qc_dqblk.dqb_ihardlimit :
 				   qctl->qc_dqblk.dqb_bhardlimit;
 	}
@@ -7461,7 +7470,21 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 	bool use_default_for_blk = false;
 	bool use_default_for_file = false;
 	int inacc;
+	__u32 dqb_valid_saved = 0;
 
+	/* Save dqb_valid in case the show edquot feature
+	 * is not supported by the server.
+	 * Set dqb_valid to -1 to prevent communication with QSDs.
+	 */
+	if (show_edquot) {
+		dqb_valid_saved = qctl->qc_dqblk.dqb_valid;
+		qctl->qc_dqblk.dqb_valid = -1;
+		rc1 = llapi_quotactl(mnt, qctl);
+		if (rc1 < 0 && print_edquot_status(name, mnt, qctl) != -1)
+		    goto out;
+	}
+	qctl->qc_dqblk.dqb_valid = dqb_valid_saved; 
+	
 	rc1 = llapi_quotactl(mnt, qctl);
 	if (rc1 < 0) {
 		switch (rc1) {
@@ -7519,11 +7542,9 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 		((qctl->qc_dqblk.dqb_valid & (QIF_LIMITS|QIF_USAGE)) !=
 		 (QIF_LIMITS|QIF_USAGE));
 
-	if (show_edquot)
-		print_exceeding_quota_status(name, mnt, qctl);
-	else
-		print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable, show_default);
-
+	print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable,
+		    show_default, show_edquot);
+		
 	if (!show_default && verbose && !show_edquot &&
 	    qctl->qc_valid == QC_GENERAL && qctl->qc_cmd != LUSTRE_Q_GETINFO &&
 	    qctl->qc_cmd != LUSTRE_Q_GETINFOPOOL) {
