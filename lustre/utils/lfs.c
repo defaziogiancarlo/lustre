@@ -7221,7 +7221,7 @@ static int print_edquot_status(char *name, char *mnt,
 	__u32 edquot = qctl->qc_dqinfo.dqi_flags & LUSTRE_DQF_EDQUOT;
 
 	if (edquot_valid) {
-		printf("%s %s quota on %s\n", name,
+		printf("PES %s %s quota on %s\n", name,
 		       edquot ? "over" : "under", mnt);
 		return 0;
 	}
@@ -7268,7 +7268,7 @@ static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
 		}
 
 		if (show_edquot) {
-		    printf("%s quota on %s\n",
+		    printf("PQ %s quota on %s\n",
 			   (bover == 1 || iover == 1) ? "over" : "under", mnt);
 		    return;
 		}
@@ -7469,7 +7469,7 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 	__u64 total_ialloc = 0, total_balloc = 0;
 	bool use_default_for_blk = false;
 	bool use_default_for_file = false;
-	int inacc;
+	int inacc = 0;
 	__u32 dqb_valid_saved = 0;
 
 	/* Save dqb_valid in case the show edquot feature
@@ -7480,7 +7480,8 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 		dqb_valid_saved = qctl->qc_dqblk.dqb_valid;
 		qctl->qc_dqblk.dqb_valid = -1;
 		rc1 = llapi_quotactl(mnt, qctl);
-		if (rc1 < 0 && print_edquot_status(name, mnt, qctl) != -1)
+		printf("rc1=%d\n", rc1);
+		if ((!(rc1 < 0)) && print_edquot_status(name, mnt, qctl) != -1)
 		    goto out;
 	}
 	qctl->qc_dqblk.dqb_valid = dqb_valid_saved; 
