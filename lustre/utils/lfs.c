@@ -7232,7 +7232,7 @@ static int print_edquot_status(char *name, char *mnt,
 
 #define STRBUF_LEN	32
 static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
-			int rc, bool h, bool show_default, bool show_edquot)
+			int rc, bool h, bool show_default, bool show_edquot, char* name)
 {
 	time_t now;
 
@@ -7268,7 +7268,7 @@ static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
 		}
 
 		if (show_edquot) {
-		    printf("PQ %s quota on %s\n",
+		    printf("PQ %s %s quota on %s\n", name,
 			   (bover == 1 || iover == 1) ? "over" : "under", mnt);
 		    return;
 		}
@@ -7448,7 +7448,7 @@ static int print_obd_quota(char *mnt, struct if_quotactl *qctl, int is_mdt,
 		}
 
 		print_quota(obd_uuid2str(&qctl->obd_uuid), qctl,
-			    qctl->qc_valid, 0, h, false, false);
+			    qctl->qc_valid, 0, h, false, false, NULL);
 		*total += is_mdt ? qctl->qc_dqblk.dqb_ihardlimit :
 				   qctl->qc_dqblk.dqb_bhardlimit;
 	}
@@ -7544,7 +7544,7 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 		 (QIF_LIMITS|QIF_USAGE));
 
 	print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable,
-		    show_default, show_edquot);
+		    show_default, show_edquot, name);
 		
 	if (!show_default && verbose && !show_edquot &&
 	    qctl->qc_valid == QC_GENERAL && qctl->qc_cmd != LUSTRE_Q_GETINFO &&
