@@ -208,22 +208,19 @@ getquota() {
 # if not, it should say so, and not over/under
 # returns 0 is equot supported, 1 otherwise
 # usage: is_edquot_supported <username>|<uid>
-# TODO allow for -u -g -p
 is_edquot_supported() {
-    local id=$1
-    local flag=$2
-    local quota_status
+	local id=$1
+	local flag=$2
+	local quota_status
 
-    [ "$#" != 2 ] && error "is_edquot_supported:
-	wrong number of arguments: $#"
+	[ "$#" != 2 ] && error "is_edquot_supported: needs 2 args"
 
-    quota_status=$($LFS quota -q -e $flag "$id" $DIR | \
-	awk '{ if (NR == 1) print $2 }')
+	quota_status=$($LFS quota -q -e $flag "$id" $DIR | \
+		awk '{ if (NR == 1) print $2 }')
 
-    [ $quota_status = "quota" ] && return 1
-    [ $quota_status = "over" -o $quota_status = "under" ] && return 0
-    quota_error "is_edquot_supported:
-	invalid edquot status: $quota_status"
+	[ $quota_status = "quota" ] && return 1
+	[ $quota_status = "over" -o $quota_status = "under" ] && return 0
+	quota_error "is_edquot_supported: invalid status $quota_status"
 }
 
 # check if a user, group, or project has exceeded some quota
@@ -231,52 +228,75 @@ is_edquot_supported() {
 # error if server doesn't support this feature or status makes no sense
 # usage: is_over_quota -u|-g|-p <username>|<groupname>|<projid>
 is_over_quota() {
-    local flag=$1
-    local entity=$2
+	local flag=$1
+	local entity=$2
+	local pool=$3
 
-    #sync_all_data > /dev/null 2>&1 || true
+	[ "$#" != 2 -a "$#" != 3 ] && error "is_over_quota: needs 2 or 3 args"
 
-    [ "$#" != 2 ] && error "is_over_quota: \
-	wrong number of arguments: $#"
+	[ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+		error "is_over_quota: wrong u/g/p $flag"
 
-    [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
-    error "is_over_quota: wrong u/g/p specifier $flag passed"
+	if [ -n "$pool" ]; then
+	    pool="--pool "${pool}
+	fi
 
-    local quota_status=$($LFS quota -q -e $flag $entity $DIR | \
-	awk '{ if (NR == 1) print $2 }')
+	local quota_status=$($LFS quota -q -e $flag $entity $pool $DIR | \
+		awk '{ if (NR == 1) print $2 }')
 
-    [ $quota_status = "over" ] && return 0
-    [ $quota_status = "under" ] && return 1
-    [ $quota_status = "quota" ] &&
-	quota_error "is_over_quota: quota_status unsupported"
-    quota_error "is_over_quota: invalid quota_status status: $quota_status"
+	[ $quota_status = "over" ] && return 0
+	[ $quota_status = "under" ] && return 1
+	[ $quota_status = "quota" ] &&
+		quota_error "is_over_quota: quota status unsupported"
+	quota_error "is_over_quota: invalid status $quota_status"
 }
+
+# check if a user, group, or project has exceeded some quota
+# returns 0 if over quota, 1 if not over quota,
+# error if server doesn't support this feature or status makes no sense
+# usage: is_over_quota -u|-g|-p <username>|<groupname>|<projid>
+is_over_quota() {
+	local flag=$1
+	local entity=$2
+
+	[ "$#" != 2 ] && error "is_over_quota: needs 2 args"
+
+	[ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+		error "is_over_quota: wrong u/g/p $flag passed"
+
+	local quota_status=$($LFS quota -q -e $flag $entity $DIR | \
+		awk '{ if (NR == 1) print $2 }')
+
+	[ $quota_status = "over" ] && return 0
+	[ $quota_status = "under" ] && return 1
+	[ $quota_status = "quota" ] &&
+		quota_error "is_over_quota: quota status unsupported"
+	quota_error "is_over_quota: invalid status: $quota_status"
+}
+
 
 # do quick edquot check now with OST pools
 # is_over_quota -u|-g|-p <username>|<groupname>|<projid> <poolname>
 is_over_quota_pooled() {
-    local flag=$1
-    local entity=$2
-    local pool=$3
+	local flag=$1
+	local entity=$2
+	local pool=$3
 
-    #sync_all_data > /dev/null 2>&1 || true
+	[ "$#" != 3 ] && error "is_over_quota_pooled: \
+		wrong number of arguments: $#"
 
-    [ "$#" != 3 ] && error "is_over_quota_pooled: \
-	wrong number of arguments: $#"
+	[ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
+		error "is_over_quota: wrong u/g/p specifier $flag passed"
 
-    [ "$flag" != "-u" -a "$flag" != "-g" -a "$flag" != "-p" ] &&
-    error "is_over_quota: wrong u/g/p specifier $flag passed"
+	local quota_status=$($LFS quota -q -e $flag $entity --pool $pool $DIR | \
+		awk '{ if (NR == 1) print $2 }')
 
-    local quota_status=$($LFS quota -q -e $flag $entity --pool $pool $DIR | \
-	awk '{ if (NR == 1) print $2 }')
-
-    [ $quota_status = "over" ] && return 0
-    [ $quota_status = "under" ] && return 1
-    [ $quota_status = "quota" ] &&
+	[ $quota_status = "over" ] && return 0
+	[ $quota_status = "under" ] && return 1
+	[ $quota_status = "quota" ] &&
 	quota_error "is_over_quota_pooled: quota_status unsupported"
-    quota_error "is_over_quota_pooled: invalid quota_status status: $quota_status"
+	quota_error "is_over_quota_pooled: invalid quota_status status: $quota_status"
 }
-
 
 # set mdt quota type
 # usage: set_mdt_qtype ugp|u|g|p|none
