@@ -206,7 +206,7 @@ getquota() {
 
 # check if edquot checking feature is supported
 # if not, it should say so, and not over/under
-# returns 0 is equot supported, 1 otherwise
+# returns 0 if equot supported, 1 otherwise
 # usage: is_edquot_supported -u <username>|<uid>
 is_edquot_supported() {
 	local id=$1
@@ -632,7 +632,7 @@ check_write_fallocate() {
 
 # test block hardlimit
 test_1a() {
-    local limit=10  # 10M
+	local limit=10  # 10M
 	local testfile="$DIR/$tdir/$tfile-0"
 
 	setup_quota_test || error "setup quota failed with $?"
@@ -1203,7 +1203,7 @@ test_1i() {
 
 	is_over_quota -u $TSTUSR &&
 		quota_error u $TSTUSR \
-		"edquot check indicates over quota, expected under quota"
+		"edquot check indicates over user user quota, expected under quota"
 
 	test_1_check_write $testfile "user" $limit
 
@@ -1234,13 +1234,13 @@ test_1i() {
 
 	is_over_quota -g $TSTUSR &&
 		quota_error g $TSTUSR \
-		"edquot check indicates over quota, expected under quota"
+		"edquot check indicates over group quota, expected under quota"
 
 	test_1_check_write $testfile "group" $limit
 
 	is_over_quota -g $TSTUSR ||
 		quota_error g $TSTUSR \
-		"edquot check indicates under quota, expected over quota"
+		"edquot check indicates under group quota, expected over quota"
 
 	rm -f $testfile
 	wait_delete_completed || error "wait_delete_completed failed"
@@ -1273,22 +1273,22 @@ test_1i() {
 
 	is_over_quota -p $TSTPRJID &&
 		quota_error p $TSTPRJID \
-		"edquot check indicates over quota, expected under quota"
+		"edquot check indicates over project quota, expected under quota"
 
 	test_1_check_write $testfile "project" $limit
 
 	is_over_quota -p $TSTPRJID ||
 		quota_error p $TSTUSR \
-		"edquot check indicates under quota, expected over quota"
-
-	# cleanup
-	cleanup_quota_test
+		"edquot check indicates under project quota, expected over quota"
 
 	used=$(getquota -p $TSTPRJID global curspace)
 	[ $used -eq 0 ] || quota_error p $TSTPRJID \
 		"project quota isn't released after deletion"
 
 	resetquota -p $TSTPRJID
+
+	# cleanup
+	cleanup_quota_test
 }
 run_test 1i "Quota quick edquot check: Block and Inode"
 

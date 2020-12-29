@@ -7230,7 +7230,7 @@ static int print_edquot_status(char *name, char *mnt,
 		       edquot ? "over" : "under", mnt);
 		return 0;
 	}
-	
+
 	return -ENOSYS;
 }
 
@@ -7273,9 +7273,11 @@ static void print_quota(char *mnt, struct if_quotactl *qctl, int type,
 		}
 
 		if (show_edquot) {
-		    printf("%s %s quota on %s\n", name,
-			   (bover == 1 || iover == 1) ? "over" : "under", mnt);
-		    return;
+			printf("%s %s quota on %s\n",
+			       name,
+			       (bover == 1 || iover == 1) ? "over" : "under",
+			       mnt);
+			return;
 		}
 
 		if (strlen(mnt) > 15)
@@ -7486,10 +7488,10 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 		qctl->qc_dqblk.dqb_valid = -1;
 		rc1 = llapi_quotactl(mnt, qctl);
 		if (!(rc1 < 0) && print_edquot_status(name, mnt, qctl) < 0)
-		    goto out;
+			goto out;
 	}
-	qctl->qc_dqblk.dqb_valid = dqb_valid_saved; 
-	
+	qctl->qc_dqblk.dqb_valid = dqb_valid_saved;
+
 	rc1 = llapi_quotactl(mnt, qctl);
 	if (rc1 < 0) {
 		switch (rc1) {
@@ -7549,7 +7551,7 @@ static int get_print_quota(char *mnt, char *name, struct if_quotactl *qctl,
 
 	print_quota(mnt, qctl, QC_GENERAL, rc1, human_readable,
 		    show_default, show_edquot, name);
-		
+
 	if (!show_default && verbose && !show_edquot &&
 	    qctl->qc_valid == QC_GENERAL && qctl->qc_cmd != LUSTRE_Q_GETINFO &&
 	    qctl->qc_cmd != LUSTRE_Q_GETINFOPOOL) {
