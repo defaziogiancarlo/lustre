@@ -1209,7 +1209,7 @@ test_1i() {
 
 	is_over_quota -u $TSTUSR ||
 		quota_error u $TSTUSR \
-		"edquot check indicates under quota, expected over quota"
+		"edquot check indicates under user quota, expected over quota"
 
 	rm -f $testfile
 	wait_delete_completed || error "wait_delete_completed failed"
@@ -1285,8 +1285,6 @@ test_1i() {
 	[ $used -eq 0 ] || quota_error p $TSTPRJID \
 		"project quota isn't released after deletion"
 
-	resetquota -p $TSTPRJID
-
 	# cleanup
 	cleanup_quota_test
 }
@@ -1334,6 +1332,7 @@ test_1j() {
 
 	# make sure the system is clean
 	local used=$(getquota -u $TSTUSR global curspace)
+
 	echo "used $used"
 
 	[ $used -ne 0 ] && error "used space($used) for user $TSTUSR isn't 0."
@@ -1343,15 +1342,15 @@ test_1j() {
 	# check for global pool, pool1, and pool2 before and after
 	is_over_quota -u $TSTUSR &&
 		quota_error u $TSTUSR \
-		"edquot check indicates over quota, expected under quota"
+		"edquot check indicates over global quota, expected under quota"
 
 	is_over_quota -u $TSTUSR $qpool1 &&
 		quota_error u $TSTUSR \
-		"edquot check indicates over quota, expected under quota"
+		"edquot check indicates over pool1 quota, expected under quota"
 
 	is_over_quota -u $TSTUSR $qpool2 &&
 		quota_error u $TSTUSR \
-		"edquot check indicates over quota, expected under quota"
+		"edquot check indicates over pool2 quota, expected under quota"
 
 	test_1_check_write $testfile "user" $limit1
 
@@ -1378,7 +1377,6 @@ test_1j() {
 	used=$(getquota -u $TSTUSR global curspace $qpool1)
 	[ $used -ne 0 ] && quota_error u $TSTUSR \
 		"user quota isn't released after deletion"
-	resetquota -u $TSTUSR
 }
 run_test 1j "Quota quick edquot check: OST pools"
 
