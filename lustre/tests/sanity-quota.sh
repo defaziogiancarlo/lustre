@@ -1189,7 +1189,8 @@ test_1i() {
 		error "set user quota failed"
 
 	# check if edquot check is supported
-	if ! is_edquot_supported -u $TSTUSR; then
+	if [ $OST1_VERSION -lt $(version_code 2.13.53) ] ||
+	    ! is_edquot_supported -u $TSTUSR; then
 		skip "edquot check is not supported"
 		return 0
 	fi
@@ -1380,8 +1381,8 @@ test_1j() {
 }
 run_test 1j "Quota quick edquot check: OST pools"
 
-# test inode hardlimit
 test_2() {
+	# similar to test_2 but with edquot checks
 	local TESTFILE="$DIR/$tdir/$tfile-0"
 	local LIMIT=$(do_facet mds1 $LCTL get_param -n \
 		qmt.$FSNAME-QMT0000.md-0x0.info |
@@ -1489,6 +1490,144 @@ test_2() {
 
 }
 run_test 2 "File hard limit (normal use and out of quota)"
+
+# test inode hardlimit
+test_2a() {
+	local TESTFILE="$DIR/$tdir/$tfile-0"
+	local LIMIT=$(do_facet mds1 $LCTL get_param -n \
+		qmt.$FSNAME-QMT0000.md-0x0.info |
+		awk '/least qunit/{ print $3 }')
+	local L2=$(do_facet mds1 $LCTL get_param -n \
+		qmt.$FSNAME-QMT0000.md-0x0.soft_least_qunit)
+
+	[ $L2 -le $LIMIT ] || LIMIT=$L2
+
+	[ "$SLOW" = "no" ] || LIMIT=$((LIMIT * 1024))
+
+	local FREE_INODES=$(mdt_free_inodes 0)
+	echo "$FREE_INODES free inodes on master MDT"
+	[ $FREE_INODES -lt $LIMIT ] &&
+		skip "not enough free inodes $FREE_INODES required $LIMIT"
+
+	setup_quota_test || error "setup quota failed with $?"
+	trap cleanup_quota_test EXIT
+
+	# enable mdt quota
+	set_mdt_qtype $QTYPE || error "enable mdt quota failed"
+
+	# test for user
+	log "User quota (inode hardlimit:$LIMIT files)"
+	$LFS setquota -u $TSTUSR -b 0 -B 0 -i 0 -I $LIMIT $DIR ||
+		error "set user quota failed"
+
+	# check if edquot check is supported
+	if ! is_edquot_supported -u $TSTUSR; then
+		skip "edquot check is not supported"
+		return 0
+	fi
+
+	# make sure the system is clean
+	local USED=$(getquota -u $TSTUSR global curinodes)
+	[ $USED -ne 0 ] && error "Used inodes($USED) for user $TSTUSR isn't 0."
+
+	# TODO should be under quota here
+
+	log "Create $LIMIT files ..."
+	$RUNAS createmany -m ${TESTFILE} $LIMIT ||
+		quota_error u $TSTUSR "user create failure, but expect success"
+
+	# TODO should be under quota here
+
+	log "Create out of file quota ..."
+	$RUNAS touch ${TESTFILE}_xxx &&
+		quota_error u $TSTUSR "user create success, but expect EDQUOT"
+
+	# TODO should be over quota here
+
+	# cleanup
+	unlinkmany ${TESTFILE} $LIMIT || error "unlinkmany $TESTFILE failed"
+	rm -f ${TESTFILE}_xxx
+	wait_delete_completed
+
+	USED=$(getquota -u $TSTUSR global curinodes)
+	[ $USED -ne 0 ] && quota_error u $TSTUSR \
+		"user quota isn't released after deletion"
+	resetquota -u $TSTUSR
+
+	# test for group
+	log "--------------------------------------"
+	log "Group quota (inode hardlimit:$LIMIT files)"
+	$LFS setquota -g $TSTUSR -b 0 -B 0 -i 0 -I $LIMIT $DIR ||
+		error "set group quota failed"
+
+	TESTFILE=$DIR/$tdir/$tfile-1
+	# make sure the system is clean
+	USED=$(getquota -g $TSTUSR global curinodes)
+	[ $USED -ne 0 ] && error "Used inodes($USED) for group $TSTUSR isn't 0."
+
+	# TODO should be under quota here
+
+	log "Create $LIMIT files ..."
+	$RUNAS createmany -m ${TESTFILE} $LIMIT ||
+		quota_error g $TSTUSR "group create failure, but expect success"
+
+	# TODO should be under quota here
+
+	log "Create out of file quota ..."
+	$RUNAS touch ${TESTFILE}_xxx &&
+		quota_error g $TSTUSR "group create success, but expect EDQUOT"
+
+	# TODO should be over quota here
+
+	# cleanup
+	unlinkmany ${TESTFILE} $LIMIT || error "unlinkmany $TESTFILE failed"
+	rm -f ${TESTFILE}_xxx
+	wait_delete_completed
+
+	USED=$(getquota -g $TSTUSR global curinodes)
+	[ $USED -ne 0 ] && quota_error g $TSTUSR \
+		"user quota isn't released after deletion"
+
+	resetquota -g $TSTUSR
+	! is_project_quota_supported && cleanup_quota_test &&
+		echo "Skip project quota is not supported" && return 0
+
+	# test for project
+	log "--------------------------------------"
+	log "Project quota (inode hardlimit:$LIMIT files)"
+	$LFS setquota -p $TSTPRJID -b 0 -B 0 -i 0 -I $LIMIT $DIR ||
+		error "set project quota failed"
+
+	TESTFILE=$DIR/$tdir/$tfile-1
+	# make sure the system is clean
+	USED=$(getquota -p $TSTPRJID global curinodes)
+	[ $USED -ne 0 ] &&
+		error "Used inodes($USED) for project $TSTPRJID isn't 0"
+
+	# TODO should be under quota here
+
+	change_project -sp $TSTPRJID $DIR/$tdir
+	log "Create $LIMIT files ..."
+	$RUNAS createmany -m ${TESTFILE} $((LIMIT-1)) || quota_error p \
+		$TSTPRJID "project create fail, but expect success"
+
+	# TODO should be under quota here
+
+	log "Create out of file quota ..."
+	$RUNAS touch ${TESTFILE}_xxx && quota_error p $TSTPRJID \
+		"project create success, but expect EDQUOT"
+
+	# TODO should be over quota here
+
+	change_project -C $DIR/$tdir
+
+	cleanup_quota_test
+	USED=$(getquota -p $TSTPRJID global curinodes)
+	[ $USED -eq 0 ] || quota_error p $TSTPRJID \
+		"project quota isn't released after deletion"
+
+}
+run_test 2a "Edquot check for inode hard limit"
 
 test_block_soft() {
 	local testfile=$1
