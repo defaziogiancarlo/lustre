@@ -1531,18 +1531,27 @@ test_2a() {
 	[ $USED -ne 0 ] && error "Used inodes($USED) for user $TSTUSR isn't 0."
 
 	# TODO should be under quota here
+	is_over_quota -u $TSTUSR &&
+		quota_error u $TSTUSR \
+		"edquot check indicates over user user quota, expected under quota"
 
 	log "Create $LIMIT files ..."
 	$RUNAS createmany -m ${TESTFILE} $LIMIT ||
 		quota_error u $TSTUSR "user create failure, but expect success"
 
 	# TODO should be under quota here
+	is_over_quota -u $TSTUSR &&
+		quota_error u $TSTUSR \
+		"edquot check indicates over user user quota, expected under quota"
 
 	log "Create out of file quota ..."
 	$RUNAS touch ${TESTFILE}_xxx &&
 		quota_error u $TSTUSR "user create success, but expect EDQUOT"
 
 	# TODO should be over quota here
+	is_over_quota -u $TSTUSR ||
+		quota_error u $TSTUSR \
+		"edquot check indicates under user quota, expected over quota"
 
 	# cleanup
 	unlinkmany ${TESTFILE} $LIMIT || error "unlinkmany $TESTFILE failed"
@@ -1566,18 +1575,27 @@ test_2a() {
 	[ $USED -ne 0 ] && error "Used inodes($USED) for group $TSTUSR isn't 0."
 
 	# TODO should be under quota here
+	is_over_quota -g $TSTUSR &&
+		quota_error g $TSTUSR \
+		"edquot check indicates over group quota, expected under quota"
 
 	log "Create $LIMIT files ..."
 	$RUNAS createmany -m ${TESTFILE} $LIMIT ||
 		quota_error g $TSTUSR "group create failure, but expect success"
 
 	# TODO should be under quota here
+	is_over_quota -g $TSTUSR &&
+		quota_error g $TSTUSR \
+		"edquot check indicates over group quota, expected under quota"
 
 	log "Create out of file quota ..."
 	$RUNAS touch ${TESTFILE}_xxx &&
 		quota_error g $TSTUSR "group create success, but expect EDQUOT"
 
 	# TODO should be over quota here
+	is_over_quota -g $TSTUSR ||
+		quota_error g $TSTUSR \
+		"edquot check indicates under group quota, expected over quota"
 
 	# cleanup
 	unlinkmany ${TESTFILE} $LIMIT || error "unlinkmany $TESTFILE failed"
@@ -1605,6 +1623,9 @@ test_2a() {
 		error "Used inodes($USED) for project $TSTPRJID isn't 0"
 
 	# TODO should be under quota here
+	is_over_quota -p $TSTPRJID &&
+		quota_error p $TSTPRJID \
+		"edquot check indicates over project quota, expected under quota"
 
 	change_project -sp $TSTPRJID $DIR/$tdir
 	log "Create $LIMIT files ..."
@@ -1612,12 +1633,18 @@ test_2a() {
 		$TSTPRJID "project create fail, but expect success"
 
 	# TODO should be under quota here
+	is_over_quota -p $TSTPRJID &&
+		quota_error p $TSTPRJID \
+		"edquot check indicates over project quota, expected under quota"
 
 	log "Create out of file quota ..."
 	$RUNAS touch ${TESTFILE}_xxx && quota_error p $TSTPRJID \
 		"project create success, but expect EDQUOT"
 
 	# TODO should be over quota here
+	is_over_quota -p $TSTPRJID ||
+		quota_error p $TSTUSR \
+		"edquot check indicates under project quota, expected over quota"
 
 	change_project -C $DIR/$tdir
 
